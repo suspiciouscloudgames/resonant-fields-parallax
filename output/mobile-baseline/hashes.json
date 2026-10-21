@@ -1,0 +1,9 @@
+{
+  "dist/window-installation.json": "87267f3ac22ef0baec32a72c08c3916294a932f1f9d3eb844669261d5abc53f9",
+  "dist/street.js": "4cd7d89c19f3e28f273d275b06c00f6b1bc6f9b2c95ee0b5d9cc173e998ca359",
+  "dist/traffic.js": "322f9f10101137ebb477776d62981f96d7805dacd9a6f58be0d8ddb7bb0da925",
+  "dist/assets/original-reference.png": "91b62751fe5fc4e2680881d7fea77578714f3051b6940d9c046a1d1ee1bf771a",
+  "dist/assets/empty.png": "fc643f2cd73691c70ba3142825c42fa33f5537fa4cff296799d50a57bda9ea03",
+  "dist/assets/layout-reference.png": "5bfe2120f82f27bbcb4c88f081ed53fe1c587a47e0aac16d4f2c37d72bd5a77a",
+  "dist/assets/street-reference-no-spire.png": "ba4da3b963a2679c385ef0bb54490ea03bd7de1d3b8a49403dbd5fd2cdf7800f"
+}

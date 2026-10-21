@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "framingVersion": 5,
+  "regions": {
+    "landscape": {"x": 42.19248, "y": 214.248},
+    "portrait": {"x": 139.14408, "y": 168.46336}
+  }
+}
