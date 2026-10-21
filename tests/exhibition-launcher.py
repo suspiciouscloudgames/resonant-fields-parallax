@@ -155,7 +155,8 @@ def run(screen_info, screenshot=False):
             launcher.wait_for(synced,timeout=10)
             assert cdp.evaluate(hub,'DeviceScreen.state.mode')==mode
             if mode=='game':
-                assert cdp.evaluate(hub,'DeviceScreen.boardAt(DeviceScreen.state.elapsed)') == cdp.evaluate(phone_session,'DeviceScreen.boardAt(PhoneView.state.elapsed)')
+                launcher.wait_for(lambda: cdp.evaluate(phone_session,'!!PhoneView.game'))
+                assert cdp.evaluate(hub,'DeviceScreen.game.board') == cdp.evaluate(phone_session,'PhoneView.game.board')
                 assert cdp.evaluate(hub,'SceneGame.status.state')=='gaming'
             if mode=='youtube':
                 launcher.wait_for(lambda: cdp.evaluate(phone_session,"document.getElementById('phone-video').readyState>=2"))
@@ -183,6 +184,53 @@ def run(screen_info, screenshot=False):
         except urllib.error.HTTPError as error:
             assert error.code==403
         print('PASS: independent phone clock/video/game sync, video decode, reconnect and key checks',flush=True)
+
+        if screenshot:
+            # Real touchscreen events must change the host-owned board, not a local mock.
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.playable'))
+            def touch(x,y):
+                cdp.call('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y,'id':1,'radiusX':4,'radiusY':4,'force':1}]},phone_session)
+                cdp.call('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]},phone_session)
+            def center(cell):
+                return cdp.evaluate(phone_session,'(()=>{const g=BlitzView.geometry(innerWidth,innerHeight),i=%d;return [g.x+(i%%8*56+28)*g.scale,g.y+(64+Math.floor(i/8)*56+28)*g.scale]})()'%cell)
+            before=cdp.evaluate(phone_session,'PhoneView.game')
+            move=cdp.evaluate(phone_session,'BlitzGame.moves(PhoneView.game.board)[0]')
+            touch(*center(move[0]))
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.selected===%d'%move[0]))
+            touch(*center(move[1]))
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.game.score>%d && PhoneView.playable'%before['score']))
+            cdp.evaluate(hub,'Installation.playback.pause(true)')
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.state.paused && !PhoneView.playable'))
+            assert cdp.evaluate(hub,'DeviceScreen.game.board')==cdp.evaluate(phone_session,'PhoneView.game.board')
+            assert cdp.evaluate(hub,'DeviceScreen.game.score')==cdp.evaluate(phone_session,'PhoneView.game.score')
+            assert not cdp.evaluate(phone_session,'BlitzAudio.status.playing')
+            cdp.evaluate(hub,'Installation.playback.pause(false)')
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.playable'))
+            # A swipe is also accepted; the source's pause and hint pictures do nothing.
+            move=cdp.evaluate(phone_session,'BlitzGame.moves(PhoneView.game.board)[0]')
+            a,b=center(move[0]),center(move[1]);score=cdp.evaluate(phone_session,'PhoneView.game.score')
+            cdp.call('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':a[0],'y':a[1],'id':1}]},phone_session)
+            cdp.call('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':b[0],'y':b[1],'id':1}]},phone_session)
+            cdp.call('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]},phone_session)
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.game.score>%d && PhoneView.playable'%score))
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,"BlitzAudio.status.ready&&BlitzAudio.status.context==='running'&&BlitzAudio.status.playing"))
+            stable=cdp.evaluate(phone_session,'PhoneView.game.revision')
+            for x,y in [(225,630),(400,575)]:
+                point=cdp.evaluate(phone_session,'(()=>{const g=BlitzView.geometry(innerWidth,innerHeight);return [g.x+%d*g.scale,g.y+%d*g.scale]})()'%(x,y))
+                touch(*point)
+            time.sleep(.4)
+            assert cdp.evaluate(phone_session,'PhoneView.game.revision')==stable
+            assert cdp.evaluate(hub,'Installation.playback.status.paused') is False
+            for name,session in [('phone-playable',phone_session),('character-live-game',outputs['landscape']['session'])]:
+                shot=cdp.call('Page.captureScreenshot',{'format':'png'},session)
+                (ROOT/'output/exhibition-validation'/(name+'.png')).write_bytes(base64.b64decode(shot['data']))
+            old_round=cdp.evaluate(phone_session,'PhoneView.state.round')
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-391750);p.advance(n)})()')
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,"PhoneView.state.mode==='clock'&&!PhoneView.playable&&!BlitzAudio.status.playing"))
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-340000);p.advance(n)})()')
+            launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.playable && PhoneView.game.score===0'))
+            assert cdp.evaluate(phone_session,'PhoneView.state.round')!=old_round
+            print('PASS: touch swaps, swipes, score/cascade reflection on character, inert menus, original audio decode/play, pause, cutoff and new-round reset',flush=True)
 
         # Normal preview sizing remains unchanged outside exhibition mode.
         normal = cdp.call("Target.createTarget", {"url": origin + "/display.html?screen=landscape"})

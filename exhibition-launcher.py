@@ -198,7 +198,7 @@ def target_session(cdp, target):
         "targetId": target, "flatten": True})["sessionId"]
 
 
-def launch_outputs(cdp, origin, token, preview=False):
+def launch_outputs(cdp, origin, token, preview=False, start_scene=None):
     hub_url = origin + "/exhibition.html?run=" + token
     def find_hub():
         return next((t for t in cdp.call("Target.getTargets")["targetInfos"]
@@ -264,7 +264,11 @@ def launch_outputs(cdp, origin, token, preview=False):
     hub_window = cdp.call("Browser.getWindowForTarget", {"targetId": hub["targetId"]})["windowId"]
     cdp.call("Browser.setWindowBounds", {
         "windowId": hub_window, "bounds": {"windowState": "minimized"}})
-    cdp.evaluate(session, "Installation.playback.start(Date.now())")
+    cdp.evaluate(session, """(()=>{
+      const p=Installation.playback,id=%s;let offset=0;
+      if(id)for(const cue of p.cues){if(cue.id===id)break;offset+=cue.duration;}
+      const now=Date.now();p.start(now-offset);p.advance(now);
+    })()""" % json.dumps(start_scene if preview else None))
     cdp.evaluate(session, "Installation.publish(true)")
     if preview:
         phone_url=origin+'/phone.html?key='+token
@@ -288,6 +292,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--preview',action='store_true')
     parser.add_argument('--port',type=int,default=8770)
+    parser.add_argument('--start-scene',choices=['smoking','rain','youtube','police','game','dog'])
     args=parser.parse_args()
     server = None
     cdp = None
@@ -311,7 +316,7 @@ def main():
         print('PHONE: '+server.phone_url,flush=True)
         process, cdp = connect_browser(
             browser, profile, origin + "/exhibition.html?run=" + token)
-        _, outputs = launch_outputs(cdp, origin, token,preview=args.preview)
+        _, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
         print('READY: '+', '.join(outputs),flush=True)
         # Closing either output ends this exhibition browser and its local server.
         ids = {o["target"] for o in outputs.values()}

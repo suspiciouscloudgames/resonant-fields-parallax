@@ -24,11 +24,11 @@ window.ExhibitionPlayback=(()=>{
     const cues=definitions.map(c=>({...c,phases:engine.exhibitionClip(c.side,c.number,c)}));
     for(const cue of cues)if(cue.phases.reduce((n,p)=>n+p.duration,0)!==cue.duration)throw Error('Invalid scene duration: '+cue.id);
     const cycleMilliseconds=cues.reduce((sum,c)=>sum+c.duration,0);
-    let started=false,last=0,elapsed=0,paused=false,current=null;
+    let started=false,last=0,elapsed=0,paused=false,current=null,runId="",serial=0;
     function render(){current=sample(cues,elapsed);engine.renderExhibition(current.side,current.number,current.clipTime,current.clock,current);}
     return {cues,cycleMilliseconds,sample:time=>sample(cues,time),
-      get started(){return started;},get status(){return {started,paused,elapsed,current};},
-      start(now=Date.now()){started=true;last=now;elapsed=0;paused=false;render();},
+      get started(){return started;},get status(){return {started,paused,elapsed,current,runId};},
+      start(now=Date.now()){runId=Date.now().toString(36)+"-"+(++serial);started=true;last=now;elapsed=0;paused=false;render();},
       advance(now){if(!started)return;const delta=Math.max(0,now-last);last=Math.max(last,now);if(!paused)elapsed+=delta;render();},
       pause(value,now=Date.now()){this.advance(now);paused=!!value;last=now;},
     };

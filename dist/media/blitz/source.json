@@ -1,0 +1,27 @@
+{
+  "source": "User-supplied video",
+  "gameCrop": [
+    414,
+    108,
+    452,
+    696
+  ],
+  "board": [
+    0,
+    64,
+    448,
+    448
+  ],
+  "gemSize": 56,
+  "types": [
+    "red",
+    "green",
+    "blue",
+    "purple",
+    "yellow",
+    "orange",
+    "white"
+  ],
+  "subtitlesIncluded": false,
+  "audio": "Original mixed recording plus short interaction excerpts; not separate original stems"
+}
