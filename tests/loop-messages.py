@@ -34,7 +34,7 @@ try:
  presets=get()['phoneState']['messages'];assert len(presets)==5
  assert all(m['preset'] and m['conversationId']=='daughter' for m in presets)
  assert [m['incoming'] for m in presets]==[True,False,True,False,True]
- assert len(get()['phoneState']['conversations'])==2
+ assert [c['id'] for c in get()['phoneState']['conversations']]==['daughter']
  for m in presets:
   import datetime
   stamp=datetime.datetime.fromtimestamp(m['receivedAt']/1000)
@@ -65,7 +65,7 @@ try:
   assert cdp.evaluate(p,"document.querySelector('.pm-contact strong').textContent")==('저장되지 않은 번호' if i==5 else '딸')
   assert cdp.evaluate(p,"document.querySelectorAll('.pm-row time').length")== (1 if i==5 else 6+4*i)
   if i==4:shot('loop-messages');assert not cdp.evaluate(p,'PhoneView.playable')
-  tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.open&&PhoneView.messages.conversationId===null'));assert cdp.evaluate(p,"document.querySelectorAll('.pm-conversation').length")==2
+  tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.open&&PhoneView.messages.conversationId===null'));assert cdp.evaluate(p,"document.querySelectorAll('.pm-conversation').length")== (2 if i==5 else 1)
   if i==5:shot('loop-two-conversations')
   leave_inbox();assert cdp.evaluate(p,'PhoneView.state.mode')==base
   for n,delivery in enumerate(server.scene_messages[name][1:],1):

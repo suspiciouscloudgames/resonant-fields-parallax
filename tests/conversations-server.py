@@ -20,7 +20,8 @@ try:
   state=result['phoneState'];item=state['messages'][-1]
   assert item['conversationId']==('neighbor' if i==5 else 'daughter')
   assert item['sender']==('저장되지 않은 번호' if i==5 else '딸')
-  assert state['conversations'][1]['total']==(1 if i==5 else 0)
+  assert [c['id'] for c in state['conversations']]==(['daughter','neighbor'] if i==5 else ['daughter'])
+  if i==5:assert state['conversations'][1]['total']==1
   assert publish(i)[1]['phoneState']['total']==6+i
  assert action('select','invalid')[0]==400
  state=action('select','daughter')[1]['phoneState'];assert state['ui']['conversationId']=='daughter'
@@ -37,7 +38,7 @@ try:
  assert page['total']==11 and page['items'][-1]['text']=='딸에게 답장'
  assert request('/api/messages?key=conversations-test&conversationId=invalid')[0]==400
  publish(0,1);state=request('/api/state?key=conversations-test')[1]['phoneState']
- assert state['total']==6 and state['conversations'][1]['total']==0
+ assert state['total']==6 and [c['id'] for c in state['conversations']]==['daughter']
  assert [m['incoming'] for m in state['messages'][:5]]==[True,False,True,False,True]
  events=request('/api/events?key=conversations-test')[1]['events'];incoming=[e for e in events if e['type']=='message.received'];assert len(incoming)==7
  assert incoming[5]['payload']['message']['sender']=='저장되지 않은 번호'

@@ -86,6 +86,7 @@ class ExhibitionStore:
         result=[]
         for key,title in CONVERSATIONS.items():
             latest=self.db.execute('SELECT * FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1',(key,)).fetchone()
+            if latest is None:continue
             incoming=self.db.execute('SELECT * FROM messages WHERE conversation_id=? AND incoming=1 ORDER BY id DESC LIMIT 1',(key,)).fetchone()
             total=self.db.execute('SELECT COUNT(*) FROM messages WHERE conversation_id=?',(key,)).fetchone()[0]
             unread=self.db.execute('SELECT COUNT(*) FROM messages WHERE conversation_id=? AND incoming=1 AND is_preset=0 AND id>?',(key,(read_through or {}).get(key,0))).fetchone()[0]

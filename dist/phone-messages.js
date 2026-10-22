@@ -5,7 +5,7 @@ window.PhoneMessages=(()=>{
   const contact=id=>contacts.find(c=>c.id===id)||contacts[0];
   function project(data,view,now=Date.now()){
     const items=data?.messages||[],ui=data?.ui||{},same=data?.sceneInstance===view.instance;
-    const conversations=data?.conversations||contacts.map(c=>{const rows=items.filter(i=>(i.conversationId||'daughter')===c.id);return {...c,latest:rows.at(-1),latestIncoming:[...rows].reverse().find(i=>i.incoming),total:rows.length,unread:0};});
+    const conversations=(data?.conversations||contacts.map(c=>{const rows=items.filter(i=>(i.conversationId||'daughter')===c.id);return {...c,latest:rows.at(-1),latestIncoming:[...rows].reverse().find(i=>i.incoming),total:rows.length,unread:0};})).filter(c=>c.latest);
     const latest=conversations.map(c=>c.latestIncoming).filter(Boolean).sort((a,b)=>b.id-a.id)[0],open=!!(same&&ui.open),conversationId=ui.conversationId??null;
     const through=ui.readThroughByConversation?.[latest?.conversationId]??ui.readThrough??0;
     const banner=!!(same&&(view.mode!=='clock'||open)&&!(open&&conversationId===(latest?.conversationId||'daughter'))&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(through,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
