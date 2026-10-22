@@ -33,7 +33,7 @@ def run(screen_info, screenshot=False):
     try:
         process, cdp = launcher.connect_browser(browser, profile,
             origin + "/exhibition.html?run=" + token,
-            ["--headless=new", "--screen-info=" + screen_info])
+            ["--headless=new", "--screen-info=" + screen_info],kiosk=True)
         print("Connected:", screen_info, flush=True)
         hub, outputs = launcher.launch_outputs(cdp, origin, token)
         print("Both outputs fullscreen; controller minimized", flush=True)
@@ -168,7 +168,7 @@ def run(screen_info, screenshot=False):
                 (ROOT/'output/exhibition-validation'/('indoor-'+mode+'.png')).write_bytes(base64.b64decode(shot['data']))
         # While running, the independent phone should remain close to the host clock.
         # Set a deterministic resumed clock rather than jumping from epoch zero.
-        cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-395000);p.advance(n)})()')
+        cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-475000);p.advance(n)})()')
         time.sleep(1)
         host_time=cdp.evaluate(hub,'Installation.playback.status.current.phone.elapsed')
         phone_time=cdp.evaluate(phone_session,'PhoneView.state.elapsed')
@@ -225,9 +225,9 @@ def run(screen_info, screenshot=False):
                 shot=cdp.call('Page.captureScreenshot',{'format':'png'},session)
                 (ROOT/'output/exhibition-validation'/(name+'.png')).write_bytes(base64.b64decode(shot['data']))
             old_round=cdp.evaluate(phone_session,'PhoneView.state.round')
-            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-573950);p.advance(n)})()')
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-649000);p.advance(n)})()')
             launcher.wait_for(lambda: cdp.evaluate(phone_session,"PhoneView.state.mode==='clock'&&!PhoneView.playable&&!BlitzAudio.status.playing"))
-            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-395000);p.advance(n)})()')
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-475000);p.advance(n)})()')
             launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.playable && PhoneView.game.score===0'))
             assert cdp.evaluate(phone_session,'PhoneView.state.round')!=old_round
             print('PASS: touch swaps, swipes, score/cascade reflection on character, inert menus, original audio decode/play, pause, cutoff and new-round reset',flush=True)

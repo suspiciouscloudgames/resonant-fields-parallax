@@ -187,15 +187,23 @@ def find_browser():
     raise RuntimeError("Microsoft Edge 또는 Google Chrome이 필요합니다.")
 
 
-def connect_browser(browser, profile, url, extra_args=()):
+def connect_browser(browser, profile, url, extra_args=(), kiosk=False):
     args = [
         browser, "--user-data-dir=" + str(profile),
         "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0",
         "--no-first-run", "--no-default-browser-check",
         "--disable-popup-blocking", "--disable-background-timer-throttling", "--autoplay-policy=no-user-gesture-required",
         "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
-        "--disable-features=msEdgeSidebarV2", "--app=" + url,
-    ] + list(extra_args)
+        "--disable-features=msEdgeSidebarV2",
+    ]
+    if kiosk:
+        # Browser-level kiosk suppresses native top-edge/fullscreen exit controls.
+        args += ["--kiosk", "--app=" + url]
+        if Path(browser).name.lower() == 'msedge.exe':
+            args += ["--edge-kiosk-type=fullscreen", "--kiosk-idle-timeout-minutes=0"]
+    else:
+        args += ["--app=" + url]
+    args += list(extra_args)
     process = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     active_port = profile / "DevToolsActivePort"
     def endpoint():
@@ -240,8 +248,14 @@ def supervise_outputs(cdp, session, outputs, origin, token, preview=False):
             outputs[name] = open_output(cdp, session, origin, token, name, output['screen'])
         elif not preview:
             bounds = cdp.call('Browser.getWindowBounds', {'windowId': output['window']})['bounds']
-            if bounds.get('windowState') != 'fullscreen':
+            covers_screen = cdp.evaluate(output['session'],
+                "Math.abs(innerWidth-screen.width)<=1 && Math.abs(innerHeight-screen.height)<=1")
+            if bounds.get('windowState') != 'fullscreen' or not covers_screen:
                 log.warning('Restoring fullscreen: %s', name)
+                # A stale fullscreen flag can survive a DPI/display-size change.
+                if bounds.get('windowState') == 'fullscreen':
+                    cdp.call('Browser.setWindowBounds', {
+                        'windowId': output['window'], 'bounds': {'windowState': 'normal'}})
                 cdp.call('Browser.setWindowBounds', {
                     'windowId': output['window'], 'bounds': {'windowState': 'fullscreen'}})
     return True
@@ -315,6 +329,9 @@ def launch_outputs(cdp, origin, token, preview=False, start_scene=None):
     for name, screen in assignments.items():
         results[name] = open_output(cdp, session, origin, token, name, screen, preview)
     hub_window = cdp.call("Browser.getWindowForTarget", {"targetId": hub["targetId"]})["windowId"]
+    if cdp.call("Browser.getWindowBounds", {"windowId": hub_window})['bounds'].get('windowState') == 'fullscreen':
+        cdp.call("Browser.setWindowBounds", {
+            "windowId": hub_window, "bounds": {"windowState": "normal"}})
     cdp.call("Browser.setWindowBounds", {
         "windowId": hub_window, "bounds": {"windowState": "minimized"}})
     cdp.evaluate(session, """(()=>{
@@ -385,7 +402,7 @@ def main():
         print('PHONE: '+server.phone_url,flush=True)
         log.info('Phone connection: %s; browser=%s',server.phone_url,browser)
         process, cdp = connect_browser(
-            browser, profile, origin + "/exhibition.html?run=" + token)
+            browser, profile, origin + "/exhibition.html?run=" + token,kiosk=not args.preview)
         session, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
         print('READY: '+', '.join(outputs),flush=True)
         log.info('READY: %s',', '.join(outputs))

@@ -19,6 +19,7 @@
       if(e.key==='Escape'){
         e.preventDefault();e.stopImmediatePropagation();if(e.repeat)return;
         exitMenu.hidden=!exitMenu.hidden;
+        document.documentElement.classList.toggle('operator-exit-open',!exitMenu.hidden);
         if(exitMenu.hidden){exitButton.blur();hide();}else{document.body.classList.remove('quiet');exitButton.focus();}
         return;
       }

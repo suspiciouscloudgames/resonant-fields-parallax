@@ -77,7 +77,7 @@ try:
   def do_GET(self):
    self.client_address=('192.0.2.10',self.client_address[1]);super().do_GET()
  server.RequestHandlerClass=functools.partial(RemotePhoneHandler,directory=str(root/'dist'))
- for asset in ('phone.html','blitz-game.js','blitz-view.js','blitz-input.js','phone.js'):
+ for asset in ('phone.html','blitz-game.js','blitz-view.js','blitz-input.js','blitz-presentation.js','phone.js'):
   with urllib.request.urlopen(origin+'/'+asset) as r:assert r.status==200
  try:urllib.request.urlopen(origin+'/exhibition.html');raise AssertionError('Controller exposed to remote phone')
  except urllib.error.HTTPError as e:assert e.code==404

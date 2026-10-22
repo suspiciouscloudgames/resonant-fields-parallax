@@ -21,7 +21,7 @@ def run(layout):
     process = cdp = None
     try:
         process, cdp = L.connect_browser(L.find_browser(), profile,
-            origin+'/exhibition.html?run=kiosk-test', ['--headless=new', '--screen-info='+layout])
+            origin+'/exhibition.html?run=kiosk-test', ['--headless=new', '--screen-info='+layout],kiosk=True)
         hub, outputs = L.launch_outputs(cdp, origin, 'kiosk-test')
         cdp.evaluate(hub, 'Installation.playback.pause(true)')
         def key(session, name, code):
@@ -48,13 +48,20 @@ def run(layout):
             assert cdp.evaluate(hub,'Installation.playback.status.paused')
             assert cdp.evaluate(s,"document.getElementById('screen').toDataURL()") == pixels
             assert cdp.evaluate(s,"document.getElementById('exit-menu').hidden && getComputedStyle(document.getElementById('controls')).display==='none' && visualViewport.scale===1")
+            # Cursor stays hidden at the native top edge and on every page layer.
+            for x,y in [(0,0),(1,1),(100,1),(10,100)]:
+                cdp.call('Input.dispatchMouseEvent',{'type':'mouseMoved','x':x,'y':y},s)
+                assert cdp.evaluate(s,"getComputedStyle(document.elementFromPoint(%d,%d)).cursor==='none'"%(x,y))
+            assert cdp.evaluate(s,"getComputedStyle(document.documentElement).cursor==='none'")
             # Escape toggles only the exit menu, without changing fullscreen.
             key(s,'Escape',27)
             assert cdp.evaluate(s,"!document.getElementById('exit-menu').hidden")
+            assert cdp.evaluate(s,"getComputedStyle(document.getElementById('exit-game')).cursor==='pointer'")
             assert L.supervise_outputs(cdp,hub,outputs,origin,'kiosk-test')
             assert cdp.call('Browser.getWindowBounds',{'windowId':output['window']})['bounds']['windowState']=='fullscreen'
             key(s,'Escape',27)
             assert cdp.evaluate(s,"document.getElementById('exit-menu').hidden")
+            assert cdp.evaluate(s,"getComputedStyle(document.elementFromPoint(1,1)).cursor==='none'")
             cdp.call('Browser.setWindowBounds',{'windowId':output['window'],'bounds':{'windowState':'normal'}})
             assert L.supervise_outputs(cdp,hub,outputs,origin,'kiosk-test')
             assert cdp.call('Browser.getWindowBounds',{'windowId':output['window']})['bounds']['windowState']=='fullscreen'

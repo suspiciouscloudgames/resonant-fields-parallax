@@ -1,7 +1,13 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>창 안과 밖 · 디스플레이</title>
+<script>if(new URLSearchParams(location.search).get('exhibition')==='1')document.documentElement.classList.add('exhibition-output');</script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font:12px -apple-system,BlinkMacSystemFont,sans-serif}body{display:grid;place-items:safe center;overflow:auto}body.fullscreen{overflow:hidden}canvas{display:block;image-rendering:pixelated;cursor:default}#controls{position:fixed;top:12px;left:12px;right:12px;max-width:430px;background:#273127ee;border:1px solid #64715d;border-radius:8px;padding:15px;line-height:1.8;transition:opacity .2s}h1{font-size:14px;margin:0 0 7px}p{margin:7px 0;color:#cad0c3}button,a{font:inherit;color:#fff;background:#516149;border:0;border-radius:4px;padding:8px 10px;text-decoration:none;cursor:default}button:focus-visible,a:focus-visible{outline:2px solid #f6c589}button+button{margin-left:4px}.hidden{opacity:0;pointer-events:none}body.quiet,body.quiet canvas{cursor:none}#error{position:absolute;inset:0;background:#202620;display:grid;place-content:center;padding:30px;line-height:1.9}#error[hidden]{display:none}#alignment{accent-color:#d38d58}
 body.exhibition{touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}body.exhibition #controls,body.exhibition #error a{display:none}#exit-menu{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:#0008;cursor:default}#exit-menu[hidden]{display:none}#exit-game{font-size:20px;padding:18px 32px;background:#333;color:#fff;cursor:pointer}body.exhibition #screen{pointer-events:none}
+/* Cover the root, blank margins, text and overlays, including before display.js loads. */
+html.exhibition-output,html.exhibition-output *{cursor:none!important}
+html.exhibition-output #controls{display:none}
+html.exhibition-output.operator-exit-open #exit-menu,html.exhibition-output.operator-exit-open #exit-menu *{cursor:default!important}
+html.exhibition-output.operator-exit-open #exit-game{cursor:pointer!important}
 </style></head><body>
 <canvas id="screen" aria-label="게임 화면"></canvas>
 <div id="exit-menu" hidden role="dialog" aria-label="전시 종료"><button id="exit-game">게임 종료</button></div>
