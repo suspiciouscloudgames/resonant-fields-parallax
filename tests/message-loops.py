@@ -2,7 +2,7 @@
 import datetime,json,sqlite3,sys,tempfile,time
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from exhibition_store import ExhibitionStore
+from exhibition_store import ExhibitionStore, PRESET_MESSAGES
 with tempfile.TemporaryDirectory() as directory:
  path=Path(directory)/'messages.sqlite3'
  # Upgrade an existing pre-reset inbox, with the original table schema.
@@ -12,15 +12,20 @@ with tempfile.TemporaryDirectory() as directory:
  presets=store.messages()['items'];assert len(presets)==5
  for m in presets:
   stamp=datetime.datetime.fromtimestamp(m['receivedAt']/1000)
-  assert m['preset'] and m['text']=='0 메시지'
+  assert m['preset'] and m['conversationId']=='daughter'
   assert stamp.date()==datetime.datetime.now().date()-datetime.timedelta(days=7) and stamp.hour==14
+ assert [(m['text'],m['incoming']) for m in presets]==PRESET_MESSAGES
  assert not any(e['type']=='message.received' for e in store.events())
  for i in range(6):
   scene={'id':str(i),'index':i,'instance':'run:'+str(i),'cycle':0}
-  store.message(str(i+1)+'씬 테스트',True,scene,key=scene['instance'])
+  item=store.message(str(i+1)+'씬 테스트',True,scene,key=scene['instance'])
+  assert item['conversationId']==('neighbor' if i==5 else 'daughter')
+  assert item['sender']==('저장되지 않은 번호' if i==5 else '딸')
   assert store.message('duplicate',True,scene,key=scene['instance']) is None
  store.message('관객 답장',False,scene)
  assert store.messages()['total']==12
+ assert store.messages(conversation_id='daughter')['total']==10
+ assert store.messages(conversation_id='neighbor')['total']==2
  assert not store.begin_loop('run:0',scene)
  store.close();store=ExhibitionStore(path)
  assert store.messages()['total']==12 and not store.begin_loop('run:0',scene)

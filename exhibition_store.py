@@ -5,6 +5,9 @@ from pathlib import Path
 import sqlite3
 import time
 
+CONVERSATIONS={'daughter':'딸','neighbor':'저장되지 않은 번호'}
+PRESET_MESSAGES=[('밥은 챙겨 드셨어요?',True),('응, 방금 먹었어.',False),('다음 주에 들를게요.',True),('그래. 올 때 연락해.',False),('네, 그때 봬요.',True)]
+
 class ExhibitionStore:
     def __init__(self,path=None):
         if path:
@@ -19,12 +22,20 @@ class ExhibitionStore:
         columns={r['name'] for r in self.db.execute('PRAGMA table_info(messages)')}
         if 'is_preset' not in columns:
             self.db.execute('ALTER TABLE messages ADD COLUMN is_preset INTEGER NOT NULL DEFAULT 0')
+        if 'conversation_id' not in columns:
+            self.db.execute("ALTER TABLE messages ADD COLUMN conversation_id TEXT NOT NULL DEFAULT 'daughter'")
+            self.db.execute("UPDATE messages SET conversation_id='neighbor' WHERE scene_number=6 AND is_preset=0")
         # These are existing conversations, not new incoming-message events.
         afternoon=(datetime.now()-timedelta(days=7)).replace(hour=14,minute=0,second=0,microsecond=0)
         with self.db:
-            for i in range(5):
+            for i,(text,incoming) in enumerate(PRESET_MESSAGES):
                 self.db.execute('INSERT OR IGNORE INTO messages(delivery_key,text,received_at,incoming,scene_id,scene_number,scene_instance,is_preset) VALUES(?,?,?,?,?,?,?,1)',
-                    ('preset:'+str(i),'0 메시지',int((afternoon+timedelta(minutes=i*7)).timestamp()*1000),1,'preset',0,'preset'))
+                    ('preset:'+str(i),text,int((afternoon+timedelta(minutes=i*7)).timestamp()*1000),int(incoming),'preset',0,'preset'))
+        if self.meta('presetConversationVersion')!=1:
+            with self.db:
+                for i,(text,incoming) in enumerate(PRESET_MESSAGES):
+                    self.db.execute("UPDATE messages SET text=?,incoming=?,conversation_id='daughter' WHERE delivery_key=? AND is_preset=1",(text,int(incoming),'preset:'+str(i)))
+                self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',('presetConversationVersion','1'))
         self.db.commit()
     def begin_loop(self,loop_id,scene,now=None):
         if self.meta('loopId')==loop_id:return False
@@ -32,7 +43,7 @@ class ExhibitionStore:
         read_through=self.db.execute('SELECT COALESCE(MAX(id),0) FROM messages WHERE is_preset=1').fetchone()[0]
         with self.db:
             self.db.execute('DELETE FROM messages WHERE is_preset=0')
-            for key,value in [('loopId',loop_id),('readThrough',read_through)]:
+            for key,value in [('loopId',loop_id),('readThrough',read_through),('readThroughByConversation',{'daughter':read_through,'neighbor':0})]:
                 self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',(key,json.dumps(value)))
             self.db.execute('INSERT OR IGNORE INTO events(event_key,type,occurred_at,payload) VALUES(?,?,?,?)',
                 ('loop:'+loop_id+':messages.reset','messages.reset',now,json.dumps({'loopId':loop_id,'presetCount':5,'scene':self.scene(scene)},ensure_ascii=False)))
@@ -43,11 +54,13 @@ class ExhibitionStore:
         with self.db:
             cursor=self.db.execute('INSERT OR IGNORE INTO events(event_key,type,occurred_at,payload) VALUES(?,?,?,?)',(key,event_type,now,json.dumps(payload,ensure_ascii=False)))
         return cursor.lastrowid if cursor.rowcount else None
-    def message(self,text,incoming,scene,key=None,now=None):
+    def message(self,text,incoming,scene,key=None,now=None,conversation_id=None):
         now=int(now if now is not None else time.time()*1000)
+        conversation_id=conversation_id or ('neighbor' if scene.get('index')==5 else 'daughter')
+        if conversation_id not in CONVERSATIONS:raise ValueError('Unknown conversation')
         if key and self.db.execute('SELECT 1 FROM messages WHERE delivery_key=?',(key,)).fetchone():return None
         with self.db:
-            cur=self.db.execute('INSERT OR IGNORE INTO messages(delivery_key,text,received_at,incoming,scene_id,scene_number,scene_instance) VALUES(?,?,?,?,?,?,?)',(key,text,now,int(incoming),scene.get('id'),scene.get('index',0)+1,scene.get('instance')))
+            cur=self.db.execute('INSERT OR IGNORE INTO messages(delivery_key,text,received_at,incoming,scene_id,scene_number,scene_instance,conversation_id) VALUES(?,?,?,?,?,?,?,?)',(key,text,now,int(incoming),scene.get('id'),scene.get('index',0)+1,scene.get('instance'),conversation_id))
         if not cur.rowcount:return None
         item=self.messages(limit=1)['items'][0]
         self.emit('message.received' if incoming else 'message.replied',{'message':item,'scene':self.scene(scene)},key='message:'+str(item['id']),now=now)
@@ -55,12 +68,29 @@ class ExhibitionStore:
     @staticmethod
     def scene(scene):
         return {k:scene.get(k) for k in ('id','index','step','cycle','instance','side','elapsed','duration')}
-    def messages(self,before=None,limit=100):
-        rows=self.db.execute('SELECT * FROM messages WHERE id<? ORDER BY id DESC LIMIT ?',(before if before is not None else 9223372036854775807,limit)).fetchall()
-        items=[{'id':r['id'],'text':r['text'],'receivedAt':r['received_at'],'incoming':bool(r['incoming']),'sceneId':r['scene_id'],'sceneNumber':r['scene_number'],'sceneInstance':r['scene_instance'],'preset':bool(r['is_preset'])} for r in reversed(rows)]
-        total=self.db.execute('SELECT COUNT(*) FROM messages').fetchone()[0]
-        more=bool(items and self.db.execute('SELECT 1 FROM messages WHERE id<? LIMIT 1',(items[0]['id'],)).fetchone())
-        return {'items':items,'total':total,'hasMore':more,'loopId':self.meta('loopId')}
+    @staticmethod
+    def item(row):
+        if row is None:return None
+        contact=CONVERSATIONS[row['conversation_id']]
+        return {'id':row['id'],'text':row['text'],'receivedAt':row['received_at'],'incoming':bool(row['incoming']),'sceneId':row['scene_id'],'sceneNumber':row['scene_number'],'sceneInstance':row['scene_instance'],'preset':bool(row['is_preset']),'conversationId':row['conversation_id'],'sender':contact if row['incoming'] else '나','contactName':contact}
+    def messages(self,before=None,limit=100,conversation_id=None):
+        if conversation_id is not None and conversation_id not in CONVERSATIONS:raise ValueError('Unknown conversation')
+        where='1=1' if conversation_id is None else 'conversation_id=?'
+        args=() if conversation_id is None else (conversation_id,)
+        rows=self.db.execute('SELECT * FROM messages WHERE '+where+' AND id<? ORDER BY id DESC LIMIT ?',args+(before if before is not None else 9223372036854775807,limit)).fetchall()
+        items=[self.item(r) for r in reversed(rows)]
+        total=self.db.execute('SELECT COUNT(*) FROM messages WHERE '+where,args).fetchone()[0]
+        more=bool(items and self.db.execute('SELECT 1 FROM messages WHERE '+where+' AND id<? LIMIT 1',args+(items[0]['id'],)).fetchone())
+        return {'items':items,'total':total,'hasMore':more,'loopId':self.meta('loopId'),'conversationId':conversation_id}
+    def conversations(self,read_through=None):
+        result=[]
+        for key,title in CONVERSATIONS.items():
+            latest=self.db.execute('SELECT * FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1',(key,)).fetchone()
+            incoming=self.db.execute('SELECT * FROM messages WHERE conversation_id=? AND incoming=1 ORDER BY id DESC LIMIT 1',(key,)).fetchone()
+            total=self.db.execute('SELECT COUNT(*) FROM messages WHERE conversation_id=?',(key,)).fetchone()[0]
+            unread=self.db.execute('SELECT COUNT(*) FROM messages WHERE conversation_id=? AND incoming=1 AND is_preset=0 AND id>?',(key,(read_through or {}).get(key,0))).fetchone()[0]
+            result.append({'id':key,'title':title,'latest':self.item(latest),'latestIncoming':self.item(incoming),'total':total,'unread':unread})
+        return result
     def events(self,after=0,limit=100):
         rows=self.db.execute('SELECT * FROM events WHERE id>? ORDER BY id LIMIT ?',(after,limit)).fetchall()
         return [{'schemaVersion':1,'id':r['id'],'source':'dual-display','type':r['type'],'occurredAt':r['occurred_at'],'payload':json.loads(r['payload'])} for r in rows]

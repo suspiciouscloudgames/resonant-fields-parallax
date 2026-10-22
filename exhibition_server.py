@@ -9,7 +9,7 @@ import socket
 import threading
 import time
 import urllib.parse
-from exhibition_store import ExhibitionStore
+from exhibition_store import ExhibitionStore, CONVERSATIONS
 
 
 def lan_address():
@@ -38,7 +38,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         self.changed = threading.Condition(self.state_lock)
         self.store = ExhibitionStore(storage_path)
         self.event_origins = set(event_origins)
-        self.ui = {'open':False,'readThrough':self.store.meta('readThrough',0),'dismissed':0,'revision':0}
+        self.ui = {'open':False,'conversationId':None,'readThroughByConversation':self.store.meta('readThroughByConversation',{}),'readThrough':self.store.meta('readThrough',0),'dismissed':0,'revision':0}
         self.last_scene = None
         self.last_base_mode = 'clock'
         self.stopping = False
@@ -65,27 +65,36 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         return self.video_seek if phase and phase['baseMode']=='youtube' and self.video_seek and self.video_seek['round']==phase['instance'] else None
 
     def phone_state(self):
-        history=self.store.messages(limit=100)
-        return {'ui':dict(self.ui),'messages':history['items'],'total':history['total'],'hasMore':history['hasMore'],'sceneInstance':self.last_scene,'loopId':history['loopId']}
+        histories={key:self.store.messages(limit=100,conversation_id=key) for key in CONVERSATIONS}
+        return {'ui':dict(self.ui),'messages':sorted([item for h in histories.values() for item in h['items']],key=lambda item:item['id']),
+                'conversations':self.store.conversations(self.ui['readThroughByConversation']),
+                'total':sum(h['total'] for h in histories.values()),'hasMore':any(h['hasMore'] for h in histories.values()),
+                'hasMoreByConversation':{k:h['hasMore'] for k,h in histories.items()},'sceneInstance':self.last_scene,'loopId':self.store.meta('loopId')}
+
+    def read_conversation(self,conversation_id):
+        history=self.store.messages(limit=1,conversation_id=conversation_id)
+        through=history['items'][-1]['id'] if history['items'] else 0
+        self.ui['readThroughByConversation']={**self.ui['readThroughByConversation'],conversation_id:through}
+        self.store.set_meta('readThroughByConversation',self.ui['readThroughByConversation'])
 
     def receive_state(self,value):
         self.state=value;self.state_received=time.monotonic()
         c=value['current'];now=int(time.time()*1000);mode=c['phone']['mode']
         loop_id=value['runId']+':'+str(c.get('cycle',0))
         if self.store.begin_loop(loop_id,c,now=now):
-            self.ui.update(open=False,readThrough=self.store.meta('readThrough',0),dismissed=0,revision=self.ui['revision']+1)
+            self.ui.update(open=False,conversationId=None,readThroughByConversation=self.store.meta('readThroughByConversation',{}),readThrough=self.store.meta('readThrough',0),dismissed=0,revision=self.ui['revision']+1)
         if c['instance']!=self.last_scene:
-            self.last_scene=c['instance'];self.ui.update(open=False,dismissed=0,revision=self.ui['revision']+1)
+            self.last_scene=c['instance'];self.ui.update(open=False,conversationId=None,dismissed=0,revision=self.ui['revision']+1)
             self.store.emit('scene.started',{'scene':self.store.scene(c),'baseMode':mode},key=c['instance']+':scene',now=now)
         if mode!=self.last_base_mode:
             # Scene-owned transitions win over a conversation left open by a visitor.
-            self.ui.update(open=False,revision=self.ui['revision']+1)
+            self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
             self.last_base_mode=mode
         if c['elapsed']>=c['messageAt']:
             item=self.store.message(str(c['index']+1)+'씬 테스트',True,c,key=c['instance']+':midpoint',now=now)
             if item:
                 self.ui['revision']+=1
-                if self.ui['open']:self.ui['readThrough']=item['id'];self.store.set_meta('readThrough',item['id'])
+                if self.ui['open'] and self.ui['conversationId']==item['conversationId']:self.read_conversation(item['conversationId'])
         game=value.get('game') or {}
         if game.get('stage')=='play':
             self.store.emit('game.round.started',{'scene':self.store.scene(c),'round':game['round'],'number':game['roundNumber']},key=game['round']+':start',now=now)
@@ -142,7 +151,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if parsed.path == '/api/messages':
                 try:before=int(urllib.parse.parse_qs(parsed.query).get('before',['9223372036854775807'])[0])
                 except ValueError:return self.reply({'error':'Invalid cursor'},400)
-                with self.server.state_lock:history=self.server.store.messages(before=before)
+                conversation=urllib.parse.parse_qs(parsed.query).get('conversationId',[None])[0]
+                if conversation is not None and conversation not in CONVERSATIONS:return self.reply({'error':'Unknown conversation'},400)
+                with self.server.state_lock:history=self.server.store.messages(before=before,conversation_id=conversation)
                 return self.reply(history)
             if parsed.path == '/api/info':
                 return self.reply({'phoneUrl':self.server.phone_url,'eventSource':'dual-display','eventSchemaVersion':1,'eventStream':'/api/events/stream','nominalLoopMs':720000})
@@ -282,22 +293,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             size=int(self.headers.get('Content-Length',0))
             if not 0<size<=4096:raise ValueError()
             value=json.loads(self.rfile.read(size));action=value['action']
-            if action not in ('messages.open','messages.back','messages.dismiss','messages.reply'):raise ValueError()
+            if action not in ('messages.open','messages.select','messages.list','messages.back','messages.dismiss','messages.reply'):raise ValueError()
             with self.server.changed:
                 phase=self.server.active_phase()
                 if not phase or value.get('instance')!=phase['instance']:return self.reply({'error':'Scene changed'},409)
                 ui=self.server.ui;c=self.server.state['current'];history=self.server.store.messages(limit=1)
-                if action=='messages.open':
-                    if not history['items']:return self.reply({'error':'No messages'},409)
-                    ui['open']=True;ui['readThrough']=history['items'][-1]['id'];self.server.store.set_meta('readThrough',ui['readThrough'])
-                elif action=='messages.back':ui['open']=False
+                if action in ('messages.open','messages.select'):
+                    conversation=value.get('conversationId')
+                    if conversation is None and action=='messages.open':
+                        latest=next((m for m in reversed(self.server.store.messages()['items']) if m['incoming']),None)
+                        conversation=latest['conversationId'] if latest else 'daughter'
+                    if conversation not in CONVERSATIONS:raise ValueError()
+                    ui.update(open=True,conversationId=conversation);self.server.read_conversation(conversation)
+                elif action=='messages.list':ui.update(open=True,conversationId=None)
+                elif action=='messages.back':ui.update(open=False,conversationId=None)
                 elif action=='messages.dismiss':ui['dismissed']=history['items'][-1]['id'] if history['items'] else 0
                 elif action=='messages.reply':
-                    text=value.get('text','')
-                    if not ui['open'] or not isinstance(text,str) or not 0<len(text.strip())<=500:raise ValueError()
-                    self.server.store.message(text.strip(),False,c)
+                    text=value.get('text','');conversation=value.get('conversationId')
+                    if not ui['open'] or conversation!=ui['conversationId'] or conversation not in CONVERSATIONS or not isinstance(text,str) or not 0<len(text.strip())<=500:raise ValueError()
+                    self.server.store.message(text.strip(),False,c,conversation_id=conversation)
                 ui['revision']+=1
-                self.server.store.emit('phone.screen.changed',{'scene':self.server.store.scene(c),'screen':'messages' if ui['open'] else phase['baseMode'],'action':action})
+                self.server.store.emit('phone.screen.changed',{'scene':self.server.store.scene(c),'screen':'messages' if ui['open'] else phase['baseMode'],'action':action,'conversationId':ui['conversationId']})
                 self.server.changed.notify_all();state=self.server.phone_state()
             return self.reply({'phoneState':state})
         except (ValueError,KeyError,TypeError):return self.reply({'error':'Invalid phone action'},400)

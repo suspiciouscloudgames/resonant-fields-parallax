@@ -43,13 +43,14 @@ window.DeviceScreen=(()=>{
     }
     if(mode==='messages'){
       c.fillStyle='#fff';c.fillRect(0,0,W,H);c.fillStyle='#f5f5f8';c.fillRect(0,0,W,135);
-      c.fillStyle='#a6aab3';c.beginPath();c.arc(W/2,72,25,0,Math.PI*2);c.fill();c.fillStyle='#111';c.font='14px sans-serif';c.textAlign='center';c.fillText('테스트',W/2,106);
-      const rows=ui.items.slice(-Math.max(1,Math.floor((H-210)/58)));
+      c.fillStyle='#a6aab3';c.beginPath();c.arc(W/2,72,25,0,Math.PI*2);c.fill();c.fillStyle='#111';c.font='14px sans-serif';c.textAlign='center';c.fillText(ui.conversationId?ui.conversation.title:'메시지',W/2,106);
+      const rows=ui.threadItems.slice(-Math.max(1,Math.floor((H-210)/58)));
       rows.forEach((item,i)=>{c.fillStyle=item.incoming?'#e9e9eb':'#34c759';c.beginPath();c.roundRect(item.incoming?16:W-180,155+i*58,164,40,16);c.fill();c.fillStyle=item.incoming?'#111':'#fff';c.textAlign='left';c.font='16px sans-serif';c.fillText(item.text.slice(0,16),item.incoming?28:W-168,168+i*58);});
-      c.strokeStyle='#ddd';c.beginPath();c.roundRect(40,H-49,W-55,33,16);c.stroke();
+      if(ui.conversationId){c.strokeStyle='#ddd';c.beginPath();c.roundRect(40,H-49,W-55,33,16);c.stroke();}
+      else for(const [i,conversation] of ui.conversations.entries()){const y=160+i*82;c.fillStyle='#a6aab3';c.beginPath();c.arc(38,y+18,23,0,Math.PI*2);c.fill();c.textAlign='left';c.fillStyle='#111';c.font='bold 16px sans-serif';c.fillText(conversation.title,75,y);c.fillStyle='#8e8e93';c.font='13px sans-serif';c.fillText((conversation.latest?.text||'아직 메시지가 없습니다').slice(0,20),75,y+26);}
     }
-    if(!options.notificationsInDOM&&!ui.open&&(ui.banner||ui.lock)){
-      const y=ui.lock?H*.55:12;c.fillStyle='#e1e4ea';c.beginPath();c.roundRect(12,y,W-24,77,18);c.fill();c.fillStyle='#34c759';c.fillRect(24,y+20,33,33);c.fillStyle='#202026';c.font='bold 14px sans-serif';c.textAlign='left';c.fillText('메시지',68,y+15);c.font='14px sans-serif';c.fillText(ui.latest?.text||'',68,y+39);
+    if(!options.notificationsInDOM&&(ui.banner||!ui.open&&ui.lock)){
+      const y=ui.lock?H*.55:12;c.fillStyle='#e1e4ea';c.beginPath();c.roundRect(12,y,W-24,77,18);c.fill();c.fillStyle='#34c759';c.fillRect(24,y+20,33,33);c.fillStyle='#202026';c.font='bold 14px sans-serif';c.textAlign='left';c.fillText(ui.latest?.sender||'메시지',68,y+15);c.font='14px sans-serif';c.fillText(ui.latest?.text||'',68,y+39);
     }
     if(Number.isFinite(view.sleepElapsed)&&view.sleepElapsed<650){c.fillStyle='rgba(0,0,0,'+Math.max(0,1-view.sleepElapsed/650)+')';c.fillRect(0,0,W,H);}
     c.setTransform(1,0,0,1,0,0);

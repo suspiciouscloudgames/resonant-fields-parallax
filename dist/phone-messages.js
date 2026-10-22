@@ -1,51 +1,78 @@
-/* Exhibition-only Messages UI. History belongs to the current exhibition loop; no SMS is sent. */
+/* Two local exhibition conversations, synchronized with the character's handset. */
 window.PhoneMessages=(()=>{
+  const contacts=[{id:'daughter',title:'딸'},{id:'neighbor',title:'저장되지 않은 번호'}];
+  const presets=[{text:'밥은 챙겨 드셨어요?',incoming:true},{text:'응, 방금 먹었어.',incoming:false},{text:'다음 주에 들를게요.',incoming:true},{text:'그래. 올 때 연락해.',incoming:false},{text:'네, 그때 봬요.',incoming:true}];
+  const contact=id=>contacts.find(c=>c.id===id)||contacts[0];
   function project(data,view,now=Date.now()){
     const items=data?.messages||[],ui=data?.ui||{},same=data?.sceneInstance===view.instance;
-    const latest=[...items].reverse().find(i=>i.incoming),open=!!(same&&ui.open);
-    const banner=!!(!open&&same&&view.mode!=='clock'&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(ui.readThrough||0,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
-    return {open,banner,items,latest,mode:open?'messages':view.mode,lock:!open&&view.mode==='clock'&&!!latest,hasMore:!!data?.hasMore,total:data?.total||items.length};
+    const conversations=data?.conversations||contacts.map(c=>{const rows=items.filter(i=>(i.conversationId||'daughter')===c.id);return {...c,latest:rows.at(-1),latestIncoming:[...rows].reverse().find(i=>i.incoming),total:rows.length,unread:0};});
+    const latest=conversations.map(c=>c.latestIncoming).filter(Boolean).sort((a,b)=>b.id-a.id)[0],open=!!(same&&ui.open),conversationId=ui.conversationId??null;
+    const through=ui.readThroughByConversation?.[latest?.conversationId]??ui.readThrough??0;
+    const banner=!!(same&&(view.mode!=='clock'||open)&&!(open&&conversationId===(latest?.conversationId||'daughter'))&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(through,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
+    return {open,banner,items,latest,conversations,conversationId,conversation:contact(conversationId),threadItems:items.filter(i=>(i.conversationId||'daughter')===conversationId),
+      mode:open?'messages':view.mode,lock:!open&&view.mode==='clock'&&!!latest,hasMore:data?.hasMoreByConversation?.[conversationId]??!!data?.hasMore,total:data?.total??items.length};
   }
   function create(options={}){
-    let data=null,view={mode:'clock'},now=Date.now(),older=[],olderComplete=false,paintKey='',historyId=null;
+    let data=null,view={mode:'clock'},now=Date.now(),older=[],olderComplete=false,paintKey='',historyId=null,selectedThread=null;
     const root=document.createElement('div');root.className='pm-root';
     const person='<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="14" r="8" fill="currentColor"/><path d="M5 37c0-10 6-15 15-15s15 5 15 15" fill="currentColor"/></svg>';
-    root.innerHTML=`<button class="pm-banner" aria-label="테스트 문자메시지 열기" hidden><span class="pm-app-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="white" d="M27 14c0 6-5 10-11 10-2 0-3 0-5-1l-6 3 2-6c-2-2-3-4-3-6C4 8 9 4 16 4s11 4 11 10Z"/></svg></span><span class="pm-banner-copy"><span class="pm-banner-heading"><strong>테스트</strong><span>지금</span></span><span class="pm-preview">테스트</span></span></button>
-      <section class="pm-messages" aria-label="테스트와의 문자메시지" hidden>
+    root.innerHTML=`<button class="pm-banner" aria-label="문자메시지 열기" hidden><span class="pm-app-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="white" d="M27 14c0 6-5 10-11 10-2 0-3 0-5-1l-6 3 2-6c-2-2-3-4-3-6C4 8 9 4 16 4s11 4 11 10Z"/></svg></span><span class="pm-banner-copy"><span class="pm-banner-heading"><strong></strong><span></span></span><span class="pm-preview"></span></span></button>
+      <section class="pm-messages" aria-label="메시지" hidden>
         <div class="pm-status"><span class="pm-clock"></span><span class="pm-indicators" aria-hidden="true">▂▄▆█ <svg viewBox="0 0 24 18"><path d="M2 5q10-8 20 0M6 9q6-5 12 0M10 13q2-2 4 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span class="pm-battery"></span></span></div>
-        <header class="pm-header"><button class="pm-back" aria-label="게임으로 돌아가기"><span aria-hidden="true">‹</span> 게임</button><div class="pm-contact"><span class="pm-avatar">${person}</span><strong>테스트 <span aria-hidden="true">›</span></strong></div></header>
-        <div class="pm-thread" role="log" aria-label="메시지 대화" aria-live="polite"><div class="pm-date">문자 메시지<br><span></span></div><button class="pm-older" hidden>이전 메시지</button><div class="pm-items"></div></div>
+        <header class="pm-header"><button class="pm-back"><span aria-hidden="true">‹</span> 메시지</button><div class="pm-contact"><span class="pm-avatar">${person}</span><strong></strong></div></header>
+        <div class="pm-inbox" hidden><h1>메시지</h1><div class="pm-conversations" aria-label="대화 목록"></div></div>
+        <div class="pm-thread" role="log" aria-label="메시지 대화" aria-live="polite"><div class="pm-date">문자 메시지</div><button class="pm-older" hidden>이전 메시지</button><div class="pm-items"></div><p class="pm-empty" hidden>아직 메시지가 없습니다</p></div>
         <form class="pm-composer"><span class="pm-plus" aria-hidden="true">+</span><label class="pm-input-wrap"><span class="pm-sr">답장</span><input class="pm-input" placeholder="문자 메시지" maxlength="500" autocomplete="off" enterkeyhint="send"><button class="pm-send" type="submit" aria-label="답장 보내기" disabled>↑</button></label></form><div class="pm-home" aria-hidden="true"></div>
       </section>`;
     document.body.append(root);
     const find=s=>root.querySelector(s),banner=find('.pm-banner'),panel=find('.pm-messages'),input=find('.pm-input'),send=find('.pm-send'),items=find('.pm-items'),thread=find('.pm-thread');
     const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';root.append(lock);
-    let previousOpen=false,lastItems='',lastClock='',canvasStates=[];
+    let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
+    const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
     function paint(){
-      const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,state.banner,state.open,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');if(keyPaint===paintKey)return;paintKey=keyPaint;banner.hidden=!state.banner;lock.hidden=!state.lock;panel.hidden=!state.open;
-      const label=view.mode==='game'?'게임':view.mode==='youtube'?'영상':'잠금화면';find('.pm-back').innerHTML='<span aria-hidden="true">‹</span> '+label;find('.pm-back').setAttribute('aria-label',label+'으로 돌아가기');
-      for(const card of [banner,lock]){card.querySelector('.pm-preview').textContent=state.latest?.text||'';card.querySelector('.pm-banner-heading>span').textContent=state.latest?new Date(state.latest.receivedAt).toLocaleString('ko-KR',{...(state.latest.preset?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true}):'';card.setAttribute('aria-label',(state.latest?.text||'')+' 문자메시지 열기');}
-      lock.querySelector('strong').textContent='메시지 · '+state.total;
+      const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,state.banner,state.open,state.conversationId,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');
+      if(keyPaint===paintKey)return;paintKey=keyPaint;
+      const changedThread=selectedThread!==state.conversationId;
+      if(changedThread){selectedThread=state.conversationId;older=[];olderComplete=false;lastItems='';input.value='';send.disabled=true;}
+      banner.hidden=!state.banner;lock.hidden=!state.lock;panel.hidden=!state.open;
+      const inThread=!!state.conversationId,baseLabel=view.mode==='game'?'게임':view.mode==='youtube'?'영상':'잠금화면',label=inThread?'메시지':baseLabel;
+      find('.pm-back').innerHTML='<span aria-hidden="true">‹</span> '+label;find('.pm-back').setAttribute('aria-label',label+'으로 돌아가기');
+      panel.classList.toggle('pm-is-inbox',!inThread);panel.setAttribute('aria-label',inThread?state.conversation.title+'와의 문자메시지':'메시지 목록');
+      find('.pm-contact').hidden=!inThread;find('.pm-contact strong').textContent=state.conversation.title;
+      find('.pm-inbox').hidden=inThread;thread.hidden=!inThread;find('form').hidden=!inThread;
+      for(const card of [banner,lock]){const name=state.latest?.sender||contact(state.latest?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=state.latest?.text||'';card.querySelector('.pm-banner-heading>span').textContent=state.latest?stamp(state.latest.receivedAt,state.latest.preset):'';card.setAttribute('aria-label',name+' · '+(state.latest?.text||'')+' 문자메시지 열기');}
+      const list=find('.pm-conversations');list.replaceChildren();
+      for(const conversation of [...state.conversations].sort((a,b)=>(b.latest?.receivedAt||0)-(a.latest?.receivedAt||0))){
+        const row=document.createElement('button');row.className='pm-conversation';row.dataset.conversation=conversation.id;row.setAttribute('aria-label',conversation.title+' 대화 열기');
+        row.innerHTML='<span class="pm-unread" aria-hidden="true"></span><span class="pm-list-avatar" aria-hidden="true">'+person+'</span><span class="pm-list-copy"><span class="pm-list-heading"><strong></strong><time></time><span aria-hidden="true">›</span></span><span class="pm-list-preview"></span></span>';
+        row.querySelector('strong').textContent=conversation.title;
+        row.querySelector('.pm-unread').hidden=!conversation.unread;
+        const latest=conversation.latest;row.querySelector('time').textContent=latest?new Date(latest.receivedAt).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}):'';
+        row.querySelector('.pm-list-preview').textContent=latest?(latest.incoming?'':'나: ')+latest.text:'아직 메시지가 없습니다';
+        row.onclick=()=>action('select',null,conversation.id);list.append(row);
+      }
       find('.pm-older').hidden=olderComplete||!state.hasMore;
+      const opened=state.open&&!previousOpen;
       if(state.open!==previousOpen){
         if(state.open){canvasStates=Array.from(document.querySelectorAll('canvas'),c=>[c,c.inert]);canvasStates.forEach(([c])=>c.inert=true);find('.pm-back').focus({preventScroll:true});}
         else{canvasStates.forEach(([c,inert])=>c.inert=inert);input.blur();input.value='';send.disabled=true;}
         previousOpen=state.open;
       }
-      const all=[...new Map([...older,...state.items].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=all.map(i=>i.id).join(',');
-      if(key!==lastItems){lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const stamp=document.createElement('time');stamp.dateTime=new Date(item.receivedAt).toISOString();stamp.textContent=new Date(item.receivedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true});row.append(stamp,bubble);items.append(row);}thread.scrollTop=thread.scrollHeight;}
-      const date=new Date(now),clock=date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
-      if(clock!==lastClock){find('.pm-clock').textContent=clock;lastClock=clock;}
+      const all=[...new Map([...older,...state.threadItems].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=state.conversationId+':'+all.map(i=>i.id).join(',');
+      if(key!==lastItems){lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(item.receivedAt).toISOString();time.textContent=stamp(item.receivedAt,true);row.append(time,bubble);items.append(row);}thread.scrollTop=thread.scrollHeight;}
+      if(opened||changedThread)thread.scrollTop=thread.scrollHeight;
+      find('.pm-empty').hidden=all.length>0;
+      find('.pm-clock').textContent=new Date(now).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
     }
-    async function action(type,text){const instance=view.instance,next=await options.action?.(type,text);if(next&&instance===view.instance)data=next;paint();}
-    banner.onclick=lock.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open');};
-    let touchY=null,suppressClick=false;banner.addEventListener('pointerdown',e=>touchY=e.clientY);banner.addEventListener('pointerup',e=>{if(touchY!==null&&e.clientY-touchY< -20){suppressClick=true;action('dismiss');e.preventDefault();}touchY=null;});
-    find('.pm-back').onclick=()=>action('back');
+    async function action(type,text,conversationId){const instance=view.instance,next=await options.action?.(type,text,conversationId);if(next&&instance===view.instance)data=next;paint();}
+    banner.onclick=lock.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open',null,project(data,view,now).latest?.conversationId||'daughter');};
+    banner.addEventListener('pointerdown',e=>touchY=e.clientY);banner.addEventListener('pointerup',e=>{if(touchY!==null&&e.clientY-touchY< -20){suppressClick=true;action('dismiss');e.preventDefault();}touchY=null;});
+    const back=()=>action(project(data,view,now).conversationId?'list':'back');find('.pm-back').onclick=back;
     input.addEventListener('input',()=>send.disabled=!input.value.trim());
-    find('form').onsubmit=e=>{e.preventDefault();action('reply',input.value);input.value='';send.disabled=true;};
-    find('.pm-older').onclick=async()=>{const requestedLoop=historyId,before=Math.min(...[...older,...(data?.messages||[])].map(i=>i.id));const result=await options.loadOlder?.(before);if(result&&historyId===requestedLoop&&result.loopId===historyId){older=[...result.items,...older];olderComplete=!result.hasMore;paintKey='';data={...data,hasMore:result.hasMore};lastItems='';paint();}};
-    root.addEventListener('keydown',e=>{if(e.key==='Escape'&&project(data,view,now).open){e.preventDefault();action('back');}});
+    find('form').onsubmit=e=>{e.preventDefault();action('reply',input.value,project(data,view,now).conversationId);input.value='';send.disabled=true;};
+    find('.pm-older').onclick=async()=>{const requestedLoop=historyId,conversationId=selectedThread,before=Math.min(...[...older,...project(data,view,now).threadItems].map(i=>i.id));const result=await options.loadOlder?.(before,conversationId);if(result&&historyId===requestedLoop&&result.loopId===historyId&&conversationId===selectedThread){older=[...result.items,...older];olderComplete=!result.hasMore;paintKey='';lastItems='';paint();}};
+    root.addEventListener('keydown',e=>{if(e.key==='Escape'&&project(data,view,now).open){e.preventDefault();back();}});
     return {update(next,current,time=Date.now()){if(next&&next.loopId!==historyId){historyId=next.loopId;older=[];olderComplete=false;lastItems='';paintKey='';input.value='';send.disabled=true;}data=next;view=current;now=time;paint();},get open(){return project(data,view,now).open;},get state(){return project(data,view,now);}};
   }
-  return {project,create};
+  return {project,create,contacts,presets};
 })();

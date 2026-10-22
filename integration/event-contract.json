@@ -30,7 +30,10 @@
         "incoming": true,
         "sceneId": "smoking",
         "sceneNumber": 1,
-        "sceneInstance": "run:6"
+        "sceneInstance": "run:6",
+        "conversationId": "daughter",
+        "sender": "딸",
+        "contactName": "딸"
       },
       "scene": {
         "id": "smoking",
@@ -45,5 +48,25 @@
     }
   },
   "crossOrigin": "Pass --event-origin https://exact-consumer-origin to the launcher. No destination is enabled by default.",
-  "inbox": "Five fixed preset messages plus current-loop messages. messages.reset clears transient inbox entries at each new loop; event replay remains durable."
+  "inbox": "Two conversations: daughter and neighbor (displayed as an unsaved number). Five exchanged daughter presets plus current-loop messages. messages.reset clears transient messages/replies in both conversations; event replay remains durable.",
+  "conversations": {
+    "daughter": {
+      "displayName": "딸",
+      "incomingScenes": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "presetMessageCount": 5
+    },
+    "neighbor": {
+      "displayName": "저장되지 않은 번호",
+      "incomingScenes": [
+        6
+      ],
+      "presetMessageCount": 0
+    }
+  }
 }

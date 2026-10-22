@@ -1,7 +1,7 @@
 (()=>{
   const messages=PhoneMessages.create({
-    async action(action,text){try{const r=await fetch('/api/phone/action?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'messages.'+action,text,instance:current.instance})});if(r.ok){const data=await r.json();if(data.phoneState.sceneInstance===current.instance){snapshot.phoneState=data.phoneState;return data.phoneState;}}}catch{}},
-    async loadOlder(before){return (await fetch('/api/messages?key='+encodeURIComponent(key)+'&before='+before)).json();}
+    async action(action,text,conversationId){try{const r=await fetch('/api/phone/action?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'messages.'+action,text,conversationId,instance:current.instance})});if(r.ok){const data=await r.json();if(data.phoneState.sceneInstance===current.instance){if(!snapshot.phoneState||data.phoneState.ui.revision>=snapshot.phoneState.ui.revision)snapshot.phoneState=data.phoneState;return snapshot.phoneState;}}}catch{}},
+    async loadOlder(before,conversationId){return (await fetch('/api/messages?key='+encodeURIComponent(key)+'&before='+before+'&conversationId='+encodeURIComponent(conversationId))).json();}
   });
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');
   const key=new URLSearchParams(location.search).get('key')||'',client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
