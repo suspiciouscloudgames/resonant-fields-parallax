@@ -33,7 +33,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         self.seen_inputs = {}
         self.video_seek = None
         self.video_revision = 0
-        self.video_duration = json.loads((Path(root)/"dist/media/youtube-short.json").read_text())["duration"]
+        self.video_duration = json.loads((Path(root)/"dist/media/youtube-short.json").read_text(encoding='utf-8'))["duration"]
         self.scene_messages = json.loads((Path(root)/'dist/scene-messages.json').read_text(encoding='utf-8'))
         self.state_lock = threading.RLock()
         self.changed = threading.Condition(self.state_lock)

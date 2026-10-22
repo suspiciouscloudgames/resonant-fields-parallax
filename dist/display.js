@@ -3,6 +3,36 @@
   const id=params.get('screen')==='portrait'?'portrait':'landscape';
   const [w,h]=id==='landscape'?[165,100]:[100,165],canvas=document.getElementById('screen');
   const controls=document.getElementById('controls'),error=document.getElementById('error');
+  const exitMenu=document.getElementById('exit-menu'),exitButton=document.getElementById('exit-game');
+  window.ExhibitionDisplay={exitRequested:false};
+  if(exhibition){
+    document.body.classList.add('exhibition');
+    // Only a physical Escape key opens the operator exit control. Touches on
+    // the artwork cannot reveal controls, navigate, zoom, or pause the loop.
+    const block=e=>{
+      if(!exitMenu.hidden&&exitButton.contains(e.target)&&!['contextmenu','wheel','dragstart'].includes(e.type))return;
+      if(e.cancelable)e.preventDefault();e.stopImmediatePropagation();
+    };
+    for(const type of ['pointerdown','pointermove','pointerup','touchstart','touchmove','touchend','click','dblclick','contextmenu','wheel','dragstart'])
+      window.addEventListener(type,block,{capture:true,passive:false});
+    window.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){
+        e.preventDefault();e.stopImmediatePropagation();if(e.repeat)return;
+        exitMenu.hidden=!exitMenu.hidden;
+        if(exitMenu.hidden){exitButton.blur();hide();}else{document.body.classList.remove('quiet');exitButton.focus();}
+        return;
+      }
+      if(!exitMenu.hidden&&['Enter',' '].includes(e.key)){
+        e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)exitButton.click();return;
+      }
+      e.preventDefault();e.stopImmediatePropagation();
+    },true);
+    exitButton.onclick=()=>{
+      window.ExhibitionDisplay.exitRequested=true;
+      const app=hub();if(app)app.exitRequested=true;
+      exitButton.disabled=true;
+    };
+  }
   let menuTimer,hidden=false;
   document.getElementById('title').textContent=`${id==='landscape'?'A · 방 안 / 가로':'B · 창 밖 / 세로'} · ${w} × ${h} mm`;
   function hub(){try{return opener&&!opener.closed&&opener.Installation;}catch{return null;}}
@@ -15,6 +45,7 @@
   async function fullscreen(){try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch{document.getElementById('size').textContent='브라우저의 전체화면 기능을 사용해 주세요.';}}
   document.getElementById('fullscreen').onclick=fullscreen;document.getElementById('hide').onclick=hide;
   window.addEventListener('keydown',e=>{
+    if(exhibition)return;
     if(/INPUT|BUTTON|A/.test(e.target.tagName))return;
     if(e.key.toLowerCase()==='f'&&!exhibition)fullscreen();
     if(e.key.toLowerCase()==='h')hidden?show():hide();
@@ -26,10 +57,10 @@
       }
     }
   });
-  window.addEventListener('keydown',e=>{if(e.key==='Enter')e.preventDefault();},true);
-  document.addEventListener('fullscreenchange',()=>{show();if(document.fullscreenElement){document.activeElement.blur();menuTimer=setTimeout(hide,2500);}});
+  window.addEventListener('keydown',e=>{if(!exhibition&&e.key==='Enter')e.preventDefault();},true);
+  document.addEventListener('fullscreenchange',()=>{if(exhibition)return;show();if(document.fullscreenElement){document.activeElement.blur();menuTimer=setTimeout(hide,2500);}});
   // Keep exhibition output free of menus; H explicitly restores controls.
-  document.addEventListener('mousemove',()=>{if(!hidden)show();});
+  document.addEventListener('mousemove',()=>{if(!exhibition&&!hidden)show();});
   function frame(){
     const app=hub();error.hidden=!!app;
     if(app?.engine.ready){
@@ -53,7 +84,7 @@
   }
   if(exhibition){
     document.getElementById('fullscreen').hidden=true;
-    controls.querySelector('p').textContent='자동 반복: 흡연 → 비 → 유튜브 → 경찰차 → 게임 → 들개 · 전체 9분 / Space 일시정지 · R 처음 / H 메뉴 숨기기 · Alt+F4 종료';
+    controls.querySelector('p').textContent='Esc: 게임 종료 메뉴';
   }
   hide();
   requestAnimationFrame(frame);

@@ -17,6 +17,10 @@ import urllib.parse
 import uuid
 import argparse
 import sys
+import logging
+from logging.handlers import RotatingFileHandler
+
+log = logging.getLogger('exhibition')
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT))
@@ -198,6 +202,72 @@ def target_session(cdp, target):
         "targetId": target, "flatten": True})["sessionId"]
 
 
+def keep_awake(enabled):
+    if os.name == 'nt':
+        import ctypes
+        # Applied only while this process runs; do not change the PC power plan.
+        flags = 0x80000000 | (0x00000003 if enabled else 0)
+        if not ctypes.windll.kernel32.SetThreadExecutionState(flags):
+            log.warning('Windows did not accept the display/sleep prevention request')
+
+
+def supervise_outputs(cdp, session, outputs, origin, token, preview=False):
+    if cdp.evaluate(session, '!!window.Installation?.exitRequested'):
+        log.info('Operator requested exit using Escape menu')
+        return False
+    current = {t['targetId'] for t in cdp.call('Target.getTargets')['targetInfos']}
+    for name, output in list(outputs.items()):
+        if output['target'] not in current:
+            if preview:
+                log.info('Preview window closed: %s', name)
+                return False
+            log.warning('Output closed unexpectedly; restoring %s without resetting the loop', name)
+            outputs[name] = open_output(cdp, session, origin, token, name, output['screen'])
+        elif not preview:
+            bounds = cdp.call('Browser.getWindowBounds', {'windowId': output['window']})['bounds']
+            if bounds.get('windowState') != 'fullscreen':
+                log.warning('Restoring fullscreen: %s', name)
+                cdp.call('Browser.setWindowBounds', {
+                    'windowId': output['window'], 'bounds': {'windowState': 'fullscreen'}})
+    return True
+
+
+def open_output(cdp, session, origin, token, name, screen, preview=False):
+    url = origin + "/display.html?screen=" + name + "&exhibition=1&run=" + token
+    opened = cdp.evaluate(session, """(()=>{
+      const s=%s;
+      return !!window.open(%s,%s,`popup,left=${s.availLeft},top=${s.availTop},width=${Math.min(800,s.availWidth)},height=${Math.min(600,s.availHeight)}`);
+    })()""" % (json.dumps(screen), json.dumps(url), json.dumps("exhibition-" + name + '-' + uuid.uuid4().hex[:8])))
+    if not opened:
+        raise RuntimeError("출력 창을 열지 못했습니다.")
+    def find_output():
+        return next((t for t in cdp.call("Target.getTargets")["targetInfos"]
+                     if t["url"] == url), None)
+    target = wait_for(find_output)
+    target_id = target["targetId"]
+    output_session = target_session(cdp, target_id)
+    wait_for(lambda: cdp.evaluate(output_session,
+        "!!window.opener?.Installation?.engine.ready && !!window.ExhibitionDisplay && !!document.getElementById('screen')"))
+    window_id = cdp.call("Browser.getWindowForTarget", {"targetId": target_id})["windowId"]
+    cdp.call("Browser.setWindowBounds", {
+        "windowId": window_id, "bounds": {"windowState": "normal"}})
+    cdp.call("Browser.setWindowBounds", {
+        "windowId": window_id, "bounds": {
+            "left": screen["availLeft"], "top": screen["availTop"],
+            "width": min(800, screen["availWidth"]),
+            "height": min(600, screen["availHeight"])}})
+    if not preview:
+        wait_for(lambda: cdp.evaluate(output_session,
+            "screen.availLeft === %d && screen.availTop === %d" %
+            (screen["availLeft"], screen["availTop"])))
+        cdp.call("Browser.setWindowBounds", {
+            "windowId": window_id, "bounds": {"windowState": "fullscreen"}})
+        wait_for(lambda: cdp.evaluate(output_session,
+            "Math.abs(innerWidth-screen.width)<=1 && Math.abs(innerHeight-screen.height)<=1"))
+    return {"target": target_id, "session": output_session,
+                     "window": window_id, "screen": screen}
+
+
 def launch_outputs(cdp, origin, token, preview=False, start_scene=None):
     hub_url = origin + "/exhibition.html?run=" + token
     def find_hub():
@@ -228,39 +298,7 @@ def launch_outputs(cdp, origin, token, preview=False, start_scene=None):
         assignments = choose_screens(screens)
     results = {}
     for name, screen in assignments.items():
-        url = origin + "/display.html?screen=" + name + "&exhibition=1&run=" + token
-        opened = cdp.evaluate(session, """(()=>{
-          const s=%s;
-          return !!window.open(%s,%s,`popup,left=${s.availLeft},top=${s.availTop},width=${Math.min(800,s.availWidth)},height=${Math.min(600,s.availHeight)}`);
-        })()""" % (json.dumps(screen), json.dumps(url), json.dumps("exhibition-" + name)))
-        if not opened:
-            raise RuntimeError("출력 창을 열지 못했습니다.")
-        def find_output():
-            return next((t for t in cdp.call("Target.getTargets")["targetInfos"]
-                         if t["url"] == url), None)
-        target = wait_for(find_output)
-        target_id = target["targetId"]
-        output_session = target_session(cdp, target_id)
-        wait_for(lambda: cdp.evaluate(output_session,
-            "!!window.opener?.Installation?.engine.ready && !!document.getElementById('screen')"))
-        window_id = cdp.call("Browser.getWindowForTarget", {"targetId": target_id})["windowId"]
-        cdp.call("Browser.setWindowBounds", {
-            "windowId": window_id, "bounds": {"windowState": "normal"}})
-        cdp.call("Browser.setWindowBounds", {
-            "windowId": window_id, "bounds": {
-                "left": screen["availLeft"], "top": screen["availTop"],
-                "width": min(800, screen["availWidth"]),
-                "height": min(600, screen["availHeight"])}})
-        if not preview:
-            wait_for(lambda: cdp.evaluate(output_session,
-                "screen.availLeft === %d && screen.availTop === %d" %
-                (screen["availLeft"], screen["availTop"])))
-            cdp.call("Browser.setWindowBounds", {
-                "windowId": window_id, "bounds": {"windowState": "fullscreen"}})
-            wait_for(lambda: cdp.evaluate(output_session,
-                "Math.abs(innerWidth-screen.width)<=1 && Math.abs(innerHeight-screen.height)<=1"))
-        results[name] = {"target": target_id, "session": output_session,
-                         "window": window_id, "screen": screen}
+        results[name] = open_output(cdp, session, origin, token, name, screen, preview)
     hub_window = cdp.call("Browser.getWindowForTarget", {"targetId": hub["targetId"]})["windowId"]
     cdp.call("Browser.setWindowBounds", {
         "windowId": hub_window, "bounds": {"windowState": "minimized"}})
@@ -295,6 +333,12 @@ def main():
     parser.add_argument('--event-origin',action='append',default=[])
     parser.add_argument('--start-scene',choices=['smoking','rain','youtube','police','game','dog'])
     args=parser.parse_args()
+    records=ROOT/'runtime-data'
+    records.mkdir(exist_ok=True)
+    handler=RotatingFileHandler(str(records/'exhibition.log'),maxBytes=1024*1024,backupCount=3,encoding='utf-8')
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+    log.addHandler(handler);log.setLevel(logging.INFO)
+    log.info('Starting exhibition: pid=%s preview=%s',os.getpid(),args.preview)
     server = None
     cdp = None
     process = None
@@ -303,6 +347,7 @@ def main():
         if os.name != "nt" and not args.preview:
             raise RuntimeError("이 실행 파일은 Windows 전시 PC용입니다.")
         browser = find_browser()
+        keep_awake(True)
         # The browser profile is temporary and never touches the user's browser.
         profile = Path(tempfile.mkdtemp(prefix="resonant-exhibition-"))
         token = uuid.uuid4().hex[:12]
@@ -315,21 +360,33 @@ def main():
         threading.Thread(target=server.serve_forever, daemon=True).start()
         origin = "http://127.0.0.1:" + str(server.server_port)
         print('PHONE: '+server.phone_url,flush=True)
+        log.info('Phone connection: %s; browser=%s',server.phone_url,browser)
         process, cdp = connect_browser(
             browser, profile, origin + "/exhibition.html?run=" + token)
-        _, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
+        session, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
         print('READY: '+', '.join(outputs),flush=True)
-        # Closing either output ends this exhibition browser and its local server.
-        ids = {o["target"] for o in outputs.values()}
+        log.info('READY: %s',', '.join(outputs))
+        last_heartbeat=time.monotonic();failures=0
         while process.poll() is None:
-            current = {t["targetId"] for t in cdp.call("Target.getTargets")["targetInfos"]}
-            if not ids.issubset(current):
-                break
-            time.sleep(1)
+            try:
+                if not supervise_outputs(cdp,session,outputs,origin,token,args.preview):break
+                failures=0
+                if time.monotonic()-last_heartbeat>=60:
+                    state=server.state or {}
+                    log.info('RUNNING scene=%s state_age=%.1fs',state.get('current',{}).get('id'),time.monotonic()-server.state_received)
+                    last_heartbeat=time.monotonic()
+            except (ConnectionError,OSError,RuntimeError):
+                failures+=1;log.exception('Output supervision failed (%s/3)',failures)
+                if failures>=3:raise
+            time.sleep(.5)
+        if process.poll() is not None:
+            log.error('Browser exited unexpectedly: code=%s',process.returncode)
     except (ConnectionError, OSError) as error:
+        log.exception('Exhibition connection or OS error')
         if process is None or process.poll() is None:
             show_error(str(error))
     except Exception as error:
+        log.exception('Exhibition failed')
         show_error(str(error))
     finally:
         if cdp:
@@ -348,6 +405,9 @@ def main():
             server.server_close()
         if profile:
             shutil.rmtree(str(profile), ignore_errors=True)
+        keep_awake(False)
+        log.info('Exhibition stopped')
+        handler.close();log.removeHandler(handler)
 
 
 def show_error(message):
