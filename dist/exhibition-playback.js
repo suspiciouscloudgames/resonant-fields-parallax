@@ -1,12 +1,12 @@
 /* The dual-display controller owns the sequence. Phones follow published cues. */
 window.ExhibitionPlayback=(()=>{
   const definitions=[
-    {id:'smoking',label:'흡연',side:'indoor',number:1,duration:45000},
-    {id:'rain',label:'비',side:'outdoor',number:3,duration:80000},
+    {id:'smoking',label:'흡연',side:'indoor',number:1,duration:50000,messageAt:12000},
+    {id:'rain',label:'비',side:'outdoor',number:3,duration:115000,outsideDuration:40000,messageAt:40000},
     {id:'youtube',label:'유튜브',side:'indoor',number:2,duration:100000},
-    {id:'police',label:'경찰차',side:'outdoor',number:1,duration:160000},
-    {id:'game',label:'게임',side:'indoor',number:3,duration:190000},
-    {id:'dog',label:'들개',side:'outdoor',number:2,duration:145000},
+    {id:'police',label:'경찰차',side:'outdoor',number:1,duration:195000,outsideDuration:40000,messageAt:40000},
+    {id:'game',label:'게임',side:'indoor',number:3,duration:230000,readingHold:{at:20000,duration:40000},messageAt:24000},
+    {id:'dog',label:'들개',side:'outdoor',number:2,duration:285000,outsideDuration:145000,messageAt:42000},
   ];
   function cueAt(cue,index,step,within,time,sceneStart){
     let phaseTime=within,phase=cue.phases[0];
@@ -15,7 +15,7 @@ window.ExhibitionPlayback=(()=>{
     return {...cue,index,step,elapsed:within,clipTime:within,clock:time,sceneStart,
       phase:phase.state,phaseTime,phaseRemaining:Math.max(0,phase.duration-phaseTime),
       captionScreen:cue.side==='indoor'?'landscape':'portrait',captionVisible:within<5000,
-      messageAt:cue.id==='game'?95000:cue.id==='dog'?8000:cue.duration/2,
+      messageAt:cue.messageAt??20000,
       phone:{mode,elapsed:mode==='clock'?0:phaseTime,remaining:mode==='game'?Math.max(0,60000-phaseTime):0}};
   }
   // Static nominal sampler remains useful for cue selection and offline tools.
@@ -33,16 +33,19 @@ window.ExhibitionPlayback=(()=>{
       for(let guard=0;guard<100000;guard++){
         let cue={...cues[index]},within=elapsed-sceneStart,game=null;
         const instance=runId+':'+step;
+        const hold=cue.readingHold,held=hold?Math.max(0,Math.min(hold.duration,within-hold.at)):0;
+        const reading=!!hold&&within>=hold.at&&within<hold.at+hold.duration;
         if(cue.id==='game'&&engine.gameSession){
-          game=engine.gameSession(instance,Math.max(0,within-1800));
-          cue.duration=game.complete?1800+game.completeAt+1100:Math.max(cue.duration,within+1101);
+          game=engine.gameSession(instance,Math.max(0,within-1800-held));
+          cue.duration=game.complete?1800+game.completeAt+(hold?.duration||0)+1100:Math.max(cue.duration,within+1101);
           cue.phases=engine.exhibitionClip(cue.side,cue.number,cue);
         }
         if(within>=cue.duration){sceneStart+=cue.duration;step++;index=(index+1)%cues.length;if(index===0){lastCycleMilliseconds=sceneStart-cycleStart;cycleStart=sceneStart;}continue;}
         current=cueAt(cue,index,step,within,elapsed,sceneStart);current.instance=instance;current.cycle=Math.floor(step/cues.length);
         current.phone.round=instance;
+        current.gameTime=Math.max(0,within-1800-held);current.phone.paused=reading;current.phone.reading=reading;
         if(current.phone.mode==='game'&&game)current.phone={...current.phone,elapsed:game.elapsed,round:game.round,stage:game.stage,remaining:Math.max(0,60000-game.elapsed)};
-        if(cue.id==='game'&&game?.complete)current.phone.sleepElapsed=within-(1800+game.completeAt);
+        if(cue.id==='game'&&game?.complete)current.phone.sleepElapsed=within-(1800+game.completeAt+(hold?.duration||0));
         engine.renderExhibition(current.side,current.number,current.clipTime,current.clock,current);return;
       }
       throw Error('Exhibition clock jump is too large');
@@ -56,7 +59,7 @@ window.ExhibitionPlayback=(()=>{
   }
   function project(snapshot,delta=0){
     const c=snapshot.current;if(!c)return {mode:'clock',elapsed:0,paused:true,round:null};
-    const dt=snapshot.paused?0:Math.max(0,Math.min(delta,1000)),p={...c.phone,paused:snapshot.paused,instance:c.instance};
+    const paused=snapshot.paused||c.phone.paused,dt=paused?0:Math.max(0,Math.min(delta,1000)),p={...c.phone,paused:paused,instance:c.instance};
     // Do not predict a different cue or round; only the dual-display host advances them.
     if(p.mode==='youtube'||p.mode==='game'&&['play','bonus','score','exit'].includes(p.stage))p.elapsed+=dt;
     if(Number.isFinite(p.sleepElapsed))p.sleepElapsed+=dt;

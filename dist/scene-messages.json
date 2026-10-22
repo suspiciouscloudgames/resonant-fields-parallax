@@ -2,33 +2,188 @@
   "dog": [
     {
       "id": "neighbor-1",
-      "at": 8000,
+      "at": 42000,
       "text": "안녕하세요. 갑자기 연락드려 죄송합니다. 저는 지금 사시는 집에서 이전에 살았던 사람입니다. 부동산에 현재 거주하시는 분께 연락드려도 되는지 여쭤봤는데, 허락해주셨다고 해서 연락처를 받았습니다. 저는 그 집에서 4년 정도 살았습니다. 꼭 확인하고 싶은 것이 있어서 메시지를 드립니다.",
-      "conversationId": "neighbor"
+      "conversationId": "neighbor",
+      "readUntil": 60000
     },
     {
       "id": "neighbor-2",
-      "at": 26000,
+      "at": 60000,
       "text": "두 개의 창 중에서 햇빛이 더 잘 들어오는 창이 있는데 혹시 아실까요? 제가 키우던 고양이가 가장 좋아하던 자리였습니다. 그곳에 감응장이 생겼고, 반려체도 하나 있었습니다. 고양이에게서 비롯된 건지, 저에게서 비롯된 지는 정확히 알 수 없었습니다. 처음 검출기로 발견했을 때는 고정형 반려체로서 아주 미약했습니다. 그런데 그 반려체가 고양이 자리에만 머물고 있어서, 점점 반려체를 보면서 고양이의 상태를 짐작하곤 했습니다. 저희 고양이가 오랫동안 아팠거든요. 반려체의 상태나 움직임이 평소와는 다르게 보이면, 고양이를 살펴보게 되었어요.",
-      "conversationId": "neighbor"
+      "conversationId": "neighbor",
+      "readUntil": 92000
     },
     {
       "id": "neighbor-3",
-      "at": 58000,
+      "at": 92000,
       "text": "그러다 보니 그 반려체가 사라지지 않을까 전전긍긍하게 되었습니다. 그 감응장에 다른 영향을 주고 싶지 않아서 그 주변에서는 되도록 평온한 마음을 유지하려고 했어요. 화가 나거나 너무 슬픈 날에는 그곳에 가까이 가기 전에 그 감정을 다른 곳에다 두고 오는 연습을 했습니다. 다른 감정이 섞이면 반려체가 달라질 것 같았거든요. 그 반려체는 늘 굉장히 침착했고, 평온했고 다정했습니다.",
-      "conversationId": "neighbor"
+      "conversationId": "neighbor",
+      "readUntil": 115000
     },
     {
       "id": "neighbor-4",
-      "at": 81000,
+      "at": 115000,
       "text": "고양이가 죽은 뒤에도 그 반려체는 같은 자리에 남아 있었습니다. 그곳에서 계속 관측되는 모습을 보고 있으면 무언가가 아직 떠나지 않은 것처럼 느껴졌습니다. 물론 그게 저의 고양이는 아니겠지만요. 저도 모르게 전보다 더 자주 검출기와 앱을 확인했던 것 같습니다. 지금 생각하면 반려체가 저에게 많은 위로를 주었던 것 같아요. 그리고 저는 적어도 그 창가에서는 반려체와 같이 평온하고 다정한 마음을 만들었습니다. 일년 뒤에 월세가 너무 올라버려서 저는 더이상 그 집에 머물 수 없게 됐어요. 모든 짐을 빼고나서 텅 빈 집에 남은 반려체에게 마지막 인사를 했는데 그 모습이 지금도 눈에 선합니다.",
-      "conversationId": "neighbor"
+      "conversationId": "neighbor",
+      "readUntil": 150000
     },
     {
       "id": "neighbor-5",
-      "at": 116000,
+      "at": 150000,
       "text": "혹시 지금도 창가에서 그 반려체가 관측되나요? 아직 남아 있다면 잘 있는지, 예전과 비슷한 모습인지 궁금합니다. 다른 모습이 되었거나 없어졌더라도, 그것 그대로 알게 된다면 좋겠습니다. 가능하시다면 시간이 되실 때 한 번만 확인해주실 수 있을까요? 부탁을 드려 죄송합니다. 답장은 편하실 때 주셔도 됩니다.",
-      "conversationId": "neighbor"
+      "conversationId": "neighbor",
+      "readUntil": 169000
+    }
+  ],
+  "smoking": [
+    {
+      "id": "daughter-1",
+      "at": 12000,
+      "text": "1씬 테스트 1",
+      "conversationId": "daughter",
+      "readUntil": 20000
+    },
+    {
+      "id": "daughter-2",
+      "at": 20000,
+      "text": "1씬 테스트 2",
+      "conversationId": "daughter",
+      "readUntil": 28000
+    },
+    {
+      "id": "daughter-3",
+      "at": 28000,
+      "text": "1씬 테스트 3",
+      "conversationId": "daughter",
+      "readUntil": 36000
+    },
+    {
+      "id": "daughter-4",
+      "at": 36000,
+      "text": "1씬 테스트 4",
+      "conversationId": "daughter",
+      "readUntil": 44000
+    }
+  ],
+  "rain": [
+    {
+      "id": "daughter-1",
+      "at": 40000,
+      "text": "2씬 테스트 1",
+      "conversationId": "daughter",
+      "readUntil": 48000
+    },
+    {
+      "id": "daughter-2",
+      "at": 48000,
+      "text": "2씬 테스트 2",
+      "conversationId": "daughter",
+      "readUntil": 56000
+    },
+    {
+      "id": "daughter-3",
+      "at": 56000,
+      "text": "2씬 테스트 3",
+      "conversationId": "daughter",
+      "readUntil": 64000
+    },
+    {
+      "id": "daughter-4",
+      "at": 64000,
+      "text": "2씬 테스트 4",
+      "conversationId": "daughter",
+      "readUntil": 72000
+    }
+  ],
+  "youtube": [
+    {
+      "id": "daughter-1",
+      "at": 20000,
+      "text": "3씬 테스트 1",
+      "conversationId": "daughter",
+      "readUntil": 28000
+    },
+    {
+      "id": "daughter-2",
+      "at": 32000,
+      "text": "3씬 테스트 2",
+      "conversationId": "daughter",
+      "readUntil": 40000
+    },
+    {
+      "id": "daughter-3",
+      "at": 44000,
+      "text": "3씬 테스트 3",
+      "conversationId": "daughter",
+      "readUntil": 52000
+    },
+    {
+      "id": "daughter-4",
+      "at": 56000,
+      "text": "3씬 테스트 4",
+      "conversationId": "daughter",
+      "readUntil": 64000
+    }
+  ],
+  "police": [
+    {
+      "id": "daughter-1",
+      "at": 40000,
+      "text": "4씬 테스트 1",
+      "conversationId": "daughter",
+      "readUntil": 48000
+    },
+    {
+      "id": "daughter-2",
+      "at": 48000,
+      "text": "4씬 테스트 2",
+      "conversationId": "daughter",
+      "readUntil": 56000
+    },
+    {
+      "id": "daughter-3",
+      "at": 56000,
+      "text": "4씬 테스트 3",
+      "conversationId": "daughter",
+      "readUntil": 64000
+    },
+    {
+      "id": "daughter-4",
+      "at": 64000,
+      "text": "4씬 테스트 4",
+      "conversationId": "daughter",
+      "readUntil": 72000
+    }
+  ],
+  "game": [
+    {
+      "id": "daughter-1",
+      "at": 24000,
+      "text": "5씬 테스트 1",
+      "conversationId": "daughter",
+      "readUntil": 32000
+    },
+    {
+      "id": "daughter-2",
+      "at": 32000,
+      "text": "5씬 테스트 2",
+      "conversationId": "daughter",
+      "readUntil": 40000
+    },
+    {
+      "id": "daughter-3",
+      "at": 40000,
+      "text": "5씬 테스트 3",
+      "conversationId": "daughter",
+      "readUntil": 48000
+    },
+    {
+      "id": "daughter-4",
+      "at": 48000,
+      "text": "5씬 테스트 4",
+      "conversationId": "daughter",
+      "readUntil": 56000
     }
   ]
 }

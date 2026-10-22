@@ -24,8 +24,8 @@
       if(response.ok){const data=await response.json();DeviceScreen.setVideoSeek(data.videoSeek||null);phoneState=data.phoneState;DeviceScreen.setPhoneState(phoneState);for(const input of data.inputs||[]){
         if(input.id<=inputAck)continue;inputAck=input.id;
         const status=playback.status;
-        if(session&&input.round===session.state.round&&!status.paused&&status.current.phone.mode==='game'&&input.revision===session.state.revision)
-          session.swap(input.from,input.to,status.current.phaseTime);
+        if(session&&input.round===session.state.round&&!status.paused&&!status.current.phone.paused&&status.current.phone.mode==='game'&&input.revision===session.state.revision)
+          session.swap(input.from,input.to,status.current.gameTime);
       }}
     }
     catch{}finally{publishing=false;}

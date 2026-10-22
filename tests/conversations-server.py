@@ -11,7 +11,7 @@ def request(path,body=None):
   with urllib.request.urlopen(req,timeout=3) as r:return r.status,json.load(r)
  except urllib.error.HTTPError as e:return e.code,json.load(e)
 def publish(i,cycle=0):
- scene={'id':['smoking','rain','youtube','police','game','dog'][i],'index':i,'cycle':cycle,'instance':'run:'+str(cycle*6+i),'elapsed':8000 if i==5 else 50,'messageAt':50,'phase':'home','phaseTime':50,'phone':{'mode':'clock','round':'run:'+str(cycle*6+i),'elapsed':0}}
+ scene={'id':['smoking','rain','youtube','police','game','dog'][i],'index':i,'cycle':cycle,'instance':'run:'+str(cycle*6+i),'elapsed':server.scene_messages[['smoking','rain','youtube','police','game','dog'][i]][0]['at'],'messageAt':50,'phase':'home','phaseTime':50,'phone':{'mode':'clock','round':'run:'+str(cycle*6+i),'elapsed':0}}
  return request('/api/state',{'started':True,'paused':True,'elapsed':50,'observedAt':time.time()*1000,'runId':'run','cues':[{}]*6,'game':None,'current':scene,'lastCycleMilliseconds':None})
 def action(action,conversation=None,text=None):return request('/api/phone/action?key=conversations-test',{'action':'messages.'+action,'conversationId':conversation,'text':text,'instance':server.last_scene})
 try:

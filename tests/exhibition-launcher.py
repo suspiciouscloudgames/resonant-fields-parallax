@@ -106,7 +106,7 @@ def run(screen_info, screenshot=False):
         })()""")
         assert all(p["actual"] == p["expected"] and abs(p["elapsed"] - p["want"]) < .01 for p in phases), phases
         print("Verified all", len(phases), "action/transition phases", flush=True)
-        starts = [0,45000,125000,225000,385000,575000]
+        starts = [0,50000,165000,265000,460000,690000]
         for index in range(6):
             t = starts[index] + 1000
             cdp.evaluate(hub, "Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)" % (t, t))
@@ -140,18 +140,18 @@ def run(screen_info, screenshot=False):
         assert base64.b64decode(plate) == (ROOT / 'output/mobile-baseline/background.png').read_bytes(), 'Printed plate changed'
         for relative, digest in json.loads((ROOT / 'output/mobile-baseline/hashes.json').read_text()).items():
             assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == digest, relative
-        print('PASS: all published protected files and rendered print background unchanged', flush=True)
+        print('PASS: all 54 protected files and rendered print background unchanged', flush=True)
         phone = cdp.call('Target.createTarget', {'url':origin+'/phone.html?key='+token,'newWindow':True})
         phone_session = launcher.target_session(cdp, phone['targetId'])
         launcher.wait_for(lambda: cdp.evaluate(phone_session, '!!window.PhoneView?.connected'))
         assert cdp.evaluate(phone_session, 'window.opener===null'), 'Phone must sync independently over HTTP'
         cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},phone_session)
-        checks=[(10000,'clock'),(46000,'clock'),(126000,'clock'),(140000,'youtube'),(224500,'clock'),(240000,'clock'),(386000,'clock'),(405000,'game'),(574000,'clock'),(580000,'clock'),(720000,'clock')]
+        checks=[(10000,'clock'),(51000,'clock'),(166000,'clock'),(180000,'youtube'),(264500,'clock'),(280000,'clock'),(461000,'clock'),(475000,'game'),(689000,'clock'),(700000,'clock'),(975000,'clock')]
         for t,mode in checks:
             cdp.evaluate(hub, 'Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)' % (t,t))
             def synced():
                 cdp.evaluate(hub, 'Installation.publish(true)')
-                return cdp.evaluate(phone_session, 'PhoneView.state.mode===%s && Math.abs(PhoneView.state.elapsed-%d)<1' % (json.dumps(mode), (t-126800 if mode=='youtube' else t-386800 if mode=='game' else 0)))
+                return cdp.evaluate(phone_session, 'PhoneView.state.mode===%s && Math.abs(PhoneView.state.elapsed-%d)<1' % (json.dumps(mode), (t-166800 if mode=='youtube' else t-461800 if mode=='game' else 0)))
             launcher.wait_for(synced,timeout=10)
             assert cdp.evaluate(hub,'DeviceScreen.state.mode')==mode
             if mode=='game':

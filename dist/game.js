@@ -617,11 +617,11 @@
     if(!['indoor','outdoor'].includes(side)||![1,2,3].includes(number))throw Error('Invalid exhibition cue');
     if(cue){
       let phases;
-      if(cue.id==='smoking')phases=[{state:'cigarette',duration:6800},{state:'smoke',duration:38200}];
+      if(cue.id==='smoking')phases=[{state:'cigarette',duration:6800},{state:'smoke',duration:cue.duration-6800}];
       else if(cue.id==='youtube')phases=[{state:'tablet',duration:1800},{state:'read',duration:96000},{state:'stow',duration:1100}];
       else if(cue.id==='game')phases=[{state:'tablet',duration:1800},{state:'gaming',duration:cue.duration-2900},{state:'stow',duration:1100}];
       else phases=['stand','exit','wait','emerge','pause','raise','outside',
-        ['encounter','dog_encounter','rain_encounter'][number-1],'return_wait','return_enter','return_sit'].map(state=>({state,duration:durations[state]}));
+        ['encounter','dog_encounter','rain_encounter'][number-1],'return_wait','return_enter','return_sit'].map(state=>({state,duration:state==='outside'?(cue.outsideDuration||durations[state]):durations[state]}));
       const length=phases.reduce((n,p)=>n+p.duration,0);
       if(length>cue.duration)throw Error('Scene duration is shorter than its original animation');
       if(length<cue.duration)phases.push({state:'home',duration:cue.duration-length});
@@ -651,7 +651,7 @@
       standPurpose=!cue&&side==='indoor'&&number===3?'plant':'exit';
       afterStow='stand';tabletFromArm=null;
       elapsed=Math.min(remaining,phase.duration);animationTime=clock;
-      if(window.DeviceScreen&&cue)DeviceScreen.update({...cue.phone,instance:cue.instance,paused:window.Installation?.playback.status.paused});
+      if(window.DeviceScreen&&cue)DeviceScreen.update({...cue.phone,instance:cue.instance,paused:cue.phone.paused||window.Installation?.playback.status.paused});
       if(state!==phase.state)change(phase.state);
       draw();
     },

@@ -52,14 +52,14 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
             return None
         c=value.get('current')
         if not c:return None
-        dt=0 if value['paused'] else max(0,time.time()*1000-value['observedAt'])
+        dt=0 if value['paused'] or c['phone'].get('paused') else max(0,time.time()*1000-value['observedAt'])
         return {'round':c['phone']['round'],'instance':c['instance'],'phase':c['phase'],
                 'elapsed':c['phaseTime']+dt,'phoneElapsed':c['phone']['elapsed']+dt,'baseMode':c['phone']['mode']}
 
     def active_round(self):
         phase=self.active_phase()
         game=(self.state or {}).get('game') or {}
-        return phase['round'] if phase and phase['baseMode']=='game' and not self.state['paused'] and game.get('stage')=='play' and phase['phoneElapsed']<60000 and not self.ui['open'] else None
+        return phase['round'] if phase and phase['baseMode']=='game' and not self.state['paused'] and not self.state['current']['phone'].get('paused') and game.get('stage')=='play' and phase['phoneElapsed']<60000 and not self.ui['open'] else None
 
     def current_video_seek(self):
         phase=self.active_phase()
@@ -79,6 +79,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         self.store.set_meta('readThroughByConversation',self.ui['readThroughByConversation'])
 
     def receive_state(self,value):
+        previous=(self.state or {}).get('current') or {}
         self.state=value;self.state_received=time.monotonic()
         c=value['current'];now=int(time.time()*1000);mode=c['phone']['mode']
         loop_id=value['runId']+':'+str(c.get('cycle',0))
@@ -91,6 +92,9 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
             # Scene-owned transitions win over a conversation left open by a visitor.
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
             self.last_base_mode=mode
+        if previous.get('instance')==c['instance'] and previous.get('phone',{}).get('reading') and not c['phone'].get('reading'):
+            self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
+            self.store.emit('phone.screen.changed',{'scene':self.store.scene(c),'screen':mode,'action':'reading.completed','conversationId':None},key=c['instance']+':reading-completed',now=now)
         deliveries=self.scene_messages.get(c['id'],[{'id':'midpoint','at':c['messageAt'],'text':str(c['index']+1)+'씬 테스트'}])
         for delivery in deliveries:
             if c['elapsed']<delivery['at']:continue
@@ -159,7 +163,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 with self.server.state_lock:history=self.server.store.messages(before=before,conversation_id=conversation)
                 return self.reply(history)
             if parsed.path == '/api/info':
-                return self.reply({'phoneUrl':self.server.phone_url,'eventSource':'dual-display','eventSchemaVersion':1,'eventStream':'/api/events/stream','nominalLoopMs':720000})
+                return self.reply({'phoneUrl':self.server.phone_url,'eventSource':'dual-display','eventSchemaVersion':1,'eventStream':'/api/events/stream','nominalLoopMs':sum(c['duration'] for c in (self.server.state or {}).get('cues',[]) if 'duration' in c) or 975000})
             if parsed.path != '/api/state':
                 return self.reply({'error': 'Not found'}, 404)
             with self.server.state_lock:

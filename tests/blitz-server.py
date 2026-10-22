@@ -23,11 +23,12 @@ def call(path,body,token=False):
   with urllib.request.urlopen(request,timeout=3) as r:return r.status,json.load(r)
  except urllib.error.HTTPError as e:return e.code,json.load(e)
 def publish(**updates):
+ reading=updates.pop('reading',False)
  value={'started':True,'paused':False,'elapsed':340000,'observedAt':time.time()*1000,'runId':'test','cues':cues,'game':{'round':'test:4','revision':0,'phase':'idle','stage':'play','roundNumber':1},'inputAck':0}
  value.update(updates)
  mode='clock' if value['elapsed']==391800 else 'game'
  value['lastCycleMilliseconds']=None
- value['current']={'id':'game','index':4,'instance':'test:4','phase':'gaming','phaseTime':8200,'elapsed':10000,'messageAt':95000,'phone':{'mode':mode,'round':'test:4','elapsed':8200}}
+ value['current']={'id':'game','index':4,'instance':'test:4','phase':'gaming','phaseTime':8200,'elapsed':10000,'messageAt':95000,'phone':{'mode':mode,'round':'test:4','elapsed':8200,'paused':reading,'reading':reading}}
  return call('/api/state',value,True)
 def move(**updates):
  value={'round':'test:4','revision':0,'from':0,'to':1,'requestId':'phone:1'};value.update(updates)
@@ -45,6 +46,11 @@ try:
  assert move(revision=10,requestId='phone:2')[0]==409
  assert call('/api/game/input?key=wrong',{})[0]==403
  assert call('/api/state',{})[0]==403
+ assert publish(reading=True)[0]==200
+ assert move(requestId='reading-blocked')[0]==409
+ assert call('/api/phone/action?key=test-key',{'action':'messages.open','conversationId':'daughter','instance':'test:4'})[0]==200
+ assert publish(reading=False)[1]['phoneState']['ui']['open'] is False
+ assert move(requestId='reading-resumed')[0]==200
  assert publish(paused=True)[0]==200
  assert move(requestId='phone:3')[0]==409
  publish(elapsed=391800)
