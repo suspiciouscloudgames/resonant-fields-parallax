@@ -100,18 +100,23 @@ window.SceneDogEncounter=(()=>{
     }
   }
   function stroke(c,points,width,color){
+    const block=Math.max(1,Math.round(width*3))/3;
     c.fillStyle=color;for(let i=1;i<points.length;i++){
       const a=points[i-1],b=points[i],steps=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])*3));
-      for(let j=0;j<=steps;j++)c.fillRect(Math.round((lerp(a[0],b[0],j/steps)-width/2)*3)/3,Math.round((lerp(a[1],b[1],j/steps)-width/2)*3)/3,width,width);
+      for(let j=0;j<=steps;j++)c.fillRect(Math.round((lerp(a[0],b[0],j/steps)-block/2)*3)/3,Math.round((lerp(a[1],b[1],j/steps)-block/2)*3)/3,block,block);
     }
   }
-  function drawDog(c,a,time){
+  let dogSprite=null;
+  function drawDog(target,a,time){
     if(!a.visible)return;
     const [x,y]=a.position,scale=.82*depth(y),sit=a.sit;
     if(scale<=0)return;
-    c.save();c.translate(Math.round(x*3)/3,Math.round(y*3)/3);c.scale(scale,scale);
+    // Build one opaque-pixel sprite before perspective scaling, like the people.
+    // Local coat patches follow the body instead of flickering as screen noise.
+    if(!dogSprite){dogSprite=document.createElement('canvas');dogSprite.width=dogSprite.height=48;}
+    const c=dogSprite.getContext('2d');c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,48,48);c.setTransform(3,0,0,3,24,36);
     const gait=a.travel/6*Math.PI*2;
-    const paper='#b9ad87',light='#c9bf9e',shade='#8b8168',ink='#565346';
+    const paper='#918e7e',light='#a3a193',shade='#66695d',ink='#41483e',dust='#7b7e70';
     const direction=a.direction||[0,a.view==='rear'?-1:1],norm=Math.hypot(...direction)||1;
     const fx=direction[0]/norm,fy=direction[1]/norm;
     // Rotate the entire quadruped on the ground plane, including every footfall.
@@ -124,28 +129,48 @@ window.SceneDogEncounter=(()=>{
       const along=front?1.65:-1.65,phase=gait+(side<0?0:Math.PI)+(front?0:Math.PI);
       const swing=a.moving?Math.sin(phase)*.65:0,lift=a.moving?Math.max(0,Math.cos(phase))*.45:0;
       const foot=ground(side*1.05,along+swing, lift),knee=ground(side*1.05,along-.25+swing*.45,1.8-sit*.45);
-      part(side,along,()=>{stroke(c,[ground(side*.9,along,(front?shoulder:hip)+bob),knee,foot],.7,side*fx<0?shade:paper);stroke(c,[foot,[foot[0]+fx*.45,foot[1]+fy*.25]],.5,shade);});
+      part(side,along,()=>{
+        const far=side*fx<0;
+        stroke(c,[ground(side*.9,along,(front?shoulder:hip)+bob),knee],.85,far?ink:shade);
+        stroke(c,[knee,foot],.6,far?shade:paper);
+        stroke(c,[[knee[0]-.15,knee[1]-.15],[knee[0]+.2,knee[1]+.3]],.45,dust);
+        stroke(c,[foot,[foot[0]+fx*.55,foot[1]+fy*.3]],.65,ink);
+      });
     }
     part(0,0,()=>{
-      const outline=[[-1,-2,hip],[-1,1.8,shoulder],[0,2.2,shoulder+.45],[1,1.8,shoulder],[1,-2,hip],[0,-2.4,hip+.2]].map(v=>ground(v[0],v[1],v[2]+bob));
-      poly(c,outline.map(v=>[v[0],v[1]+1.65]),shade);poly(c,outline,paper);
-      stroke(c,[ground(-.25,-1.6,hip+.1+bob),ground(-.25,1.5,shoulder+.1+bob)],.65,light);
+      const middle=(hip+shoulder)/2;
+      const outline=[[-.95,-2.1,hip],[-1.2,-1.1,hip+.1],[-1.05,.3,middle],[-1.25,1.35,shoulder-.08],[-.8,2.05,shoulder+.1],[-.15,2.35,shoulder+.42],[.7,2,shoulder+.1],[1.1,.85,middle+.08],[.9,-.65,hip+.2],[1.15,-1.8,hip],[.4,-2.35,hip+.13]].map(v=>ground(v[0],v[1],v[2]+bob));
+      poly(c,outline.map((v,i)=>[v[0],v[1]+(i%3===0?1.5:1.7)]),shade);poly(c,outline,paper);
+      const patch=(side,along,w,length,tone)=>poly(c,[[side,along],[side+w,along],[side+w,along+length],[side,along+length]].map(([u,v])=>ground(u,v,lerp(hip,shoulder,(v+2)/4)+.12+bob)),tone);
+      // Unequal, muted blocks replace the clean stripe along the back.
+      patch(-.9,-1.55,.7,.8,dust);patch(-.5,-.8,.65,.65,shade);
+      patch(.1,-1.9,.55,.5,light);patch(-.25,.45,.65,.85,light);
+      patch(.45,1.25,.5,.55,dust);
+      for(const side of [-1,1]){
+        stroke(c,[ground(side*.9,-1.25,hip-.45+bob),ground(side*1.05,-.65,middle-.8+bob)],.55,ink);
+        stroke(c,[ground(side*1.05,1.4,shoulder-.35+bob),ground(side*1.2,1.05,shoulder-.9+bob)],.65,dust);
+      }
     });
     const headAlong=2.35+a.eat*.85,headHeight=5.1-a.eat*3.25+bob;
     part(0,2.5,()=>{
       const h=ground(0,headAlong,headHeight),earOffset=fx*.2;
-      poly(c,[[h[0]-1.15,h[1]-.4],[h[0]-1.25,h[1]-2.15],[h[0]-.35,h[1]-1.4+earOffset],[h[0]+.45,h[1]-1.4-earOffset],[h[0]+1.3,h[1]-2.1],[h[0]+1.2,h[1]-.35],[h[0]+.8,h[1]+.9],[h[0]-.7,h[1]+.95]],fy<0?shade:paper);
+      poly(c,[[h[0]-1.15,h[1]-.25],[h[0]-1.35,h[1]-1.35],[h[0]-1.1,h[1]-2.1],[h[0]-.55,h[1]-1.45+earOffset],[h[0]-.15,h[1]-1.25],[h[0]+.5,h[1]-1.35-earOffset],[h[0]+.95,h[1]-2],[h[0]+1.25,h[1]-1.2],[h[0]+1.05,h[1]-.3],[h[0]+.9,h[1]+.55],[h[0]+.4,h[1]+1],[h[0]-.5,h[1]+.8],[h[0]-1,h[1]+.2]],fy<0?shade:paper);
+      poly(c,[[h[0]-.9,h[1]-.9],[h[0]-.25,h[1]-1.15],[h[0]+.35,h[1]-.75],[h[0],h[1]-.2],[h[0]-.7,h[1]-.25]],fy<0?dust:light);
+      poly(c,[[h[0]+.55,h[1]-.45],[h[0]+1,h[1]-.1],[h[0]+.65,h[1]+.65],[h[0]+.15,h[1]+.5]],ink);
       // Plain muzzle silhouette, with no eyes, mouth or expression marks.
       const muzzle=ground(0,headAlong+.7,headHeight-.65);
-      poly(c,[[h[0]-.65,h[1]+.2],[h[0]+.7,h[1]+.2],[muzzle[0]+.55,muzzle[1]+.65],[muzzle[0]-.55,muzzle[1]+.65]],fy<0?shade:paper);
+      poly(c,[[h[0]-.65,h[1]+.2],[h[0]+.55,h[1]+.25],[muzzle[0]+.55,muzzle[1]+.65],[muzzle[0]-.25,muzzle[1]+.8],[muzzle[0]-.6,muzzle[1]+.4]],fy<0?shade:dust);
     });
     part(0,-2.6,()=>{
       const wag=Math.sin(time/520)*a.wag*.3;
       // A narrow, gently curled Jindo tail, with no bushy plume.
       const points=[[0,-2.05,hip-.1],[wag,-2.7,hip+1],[wag+.1,-2.75,hip+1.85],[wag+.5,-2.2,hip+2.05],[wag+.7,-1.9,hip+1.65]].map(v=>ground(...v));
-      stroke(c,points,.45,paper);
+      stroke(c,points.slice(0,3),.6,shade);stroke(c,points.slice(2),.5,paper);
     });
-    parts.sort((a,b)=>a.z-b.z);for(const part of parts)part.draw();c.restore();
+    parts.sort((a,b)=>a.z-b.z);for(const part of parts)part.draw();
+    const size=Math.max(1,Math.round(48*scale));
+    target.save();target.imageSmoothingEnabled=false;
+    target.drawImage(dogSprite,Math.round(x*3-size/2)/3,Math.round(y*3-size*.75)/3,size/3,size/3);target.restore();
   }
 
   function draw(c,time,animationTime=time){
