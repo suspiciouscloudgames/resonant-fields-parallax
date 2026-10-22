@@ -60,13 +60,14 @@
     if(lastRound!==current.round||current.mode!=='game'){selected=-1;pending=null;down=null;lastInteraction=now;lastRound=current.round;}
     if(board&&lastRevision!==board.revision){selected=-1;if(pending&&pending.revision!==board.revision)pending=null;lastRevision=board.revision;}
     if(pending&&now-pending.since>1200)pending=null;
-    button.hidden=current.mode==='youtube'||!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(board);BlitzAudio.update({...current,paused:current.paused||messages.open||board?.stage==='entry'},board);
+    button.hidden=!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(board);BlitzAudio.update({...current,paused:current.paused||messages.open||board?.stage==='entry'},board);
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     DeviceScreen.render(canvas,current,wall,{selected,notificationsInDOM:true,seekControl:true,hint:playable()&&now-lastInteraction>6000});canvas.dataset.mode=messages.state.mode;
     canvas.setAttribute('aria-label',current.mode==='clock'?'모바일 시계 화면':current.mode==='youtube'?'Gaza Child Calls Himself Man of the House · Shorts':'Bejeweled Blitz · 보석을 밀거나 두 개를 눌러 교환');
     requestAnimationFrame(frame);
   }
   async function keepAwake(){try{if(navigator.wakeLock&&document.visibilityState==='visible')wake=await navigator.wakeLock.request('screen');}catch{}}
+  document.addEventListener('pointerdown',()=>{BlitzAudio.unlock();DeviceScreen.unlockVideo();keepAwake();},{once:true});
   button.onclick=async()=>{BlitzAudio.unlock();DeviceScreen.unlockVideo();try{await document.documentElement.requestFullscreen();await keepAwake();}catch{}};
   document.addEventListener('fullscreenchange',()=>{button.hidden=!!document.fullscreenElement;});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){keepAwake();lastGood=0;}else if(wake)wake.release().catch(()=>{});});

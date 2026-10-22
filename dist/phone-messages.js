@@ -39,7 +39,9 @@ window.PhoneMessages=(()=>{
       banner.hidden=!state.banner;locks.hidden=!state.lock;lock.hidden=!state.lock;panel.hidden=!state.open;
       const inThread=!!state.conversationId,baseLabel=view.mode==='game'?'게임':view.mode==='youtube'?'영상':'잠금화면',label=inThread?'메시지':baseLabel;
       find('.pm-back').innerHTML='<span aria-hidden="true">‹</span> '+label;find('.pm-back').setAttribute('aria-label',label+'으로 돌아가기');
+      find('.pm-back').hidden=!inThread&&view.mode==='clock';
       panel.classList.toggle('pm-is-inbox',!inThread);panel.setAttribute('aria-label',inThread?state.conversation.title+'와의 문자메시지':'메시지 목록');
+      panel.classList.toggle('pm-clock-inbox',!inThread&&view.mode==='clock');
       find('.pm-contact').hidden=!inThread;find('.pm-contact strong').textContent=state.conversation.title;
       find('.pm-inbox').hidden=inThread;thread.hidden=!inThread;find('form').hidden=!inThread;
       function paintCard(card,item){const name=item?.sender||contact(item?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=item?.text||'';card.querySelector('.pm-banner-heading>span').textContent=item?stamp(item.receivedAt,item.preset):'';card.setAttribute('aria-label',name+' · '+(item?.text||'')+' 문자메시지 열기');}
@@ -73,7 +75,7 @@ window.PhoneMessages=(()=>{
     async function action(type,text,conversationId){const instance=view.instance,next=await options.action?.(type,text,conversationId);if(next&&instance===view.instance)data=next;paint();}
     banner.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open',null,project(data,view,now).latest?.conversationId||'daughter');};
     banner.addEventListener('pointerdown',e=>touchY=e.clientY);banner.addEventListener('pointerup',e=>{if(touchY!==null&&e.clientY-touchY< -20){suppressClick=true;action('dismiss');e.preventDefault();}touchY=null;});
-    const back=()=>action(project(data,view,now).conversationId?'list':'back');find('.pm-back').onclick=back;
+    const back=()=>{const state=project(data,view,now);if(state.conversationId)return action('list');if(view.mode!=='clock')return action('back');};find('.pm-back').onclick=back;
     input.addEventListener('input',()=>send.disabled=!input.value.trim());
     find('form').onsubmit=e=>{e.preventDefault();action('reply',input.value,project(data,view,now).conversationId);input.value='';send.disabled=true;};
     find('.pm-older').onclick=async()=>{const requestedLoop=historyId,conversationId=selectedThread,before=Math.min(...[...older,...project(data,view,now).threadItems].map(i=>i.id));const result=await options.loadOlder?.(before,conversationId);if(result&&historyId===requestedLoop&&result.loopId===historyId&&conversationId===selectedThread){older=[...result.items,...older];olderComplete=!result.hasMore;paintKey='';lastItems='';paint();}};

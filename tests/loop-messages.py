@@ -19,6 +19,15 @@ try:
   box=cdp.evaluate(p,'(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()')
   for kind in ['mousePressed','mouseReleased']:cdp.call('Input.dispatchMouseEvent',{'type':kind,'button':'left','clickCount':1,**box},p)
  def wait_messages(opened):L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.open')==opened and cdp.evaluate(hub,'PhoneMessages.project('+json.dumps(get()['phoneState'])+',DeviceScreen.state).open')==opened)
+ def leave_inbox():
+  if get()['current']['phone']['mode']=='clock':
+   assert cdp.evaluate(p,"document.querySelector('.pm-back').hidden")
+   # Fixture cleanup only: visitors have no clock exit; the next scene closes it.
+   body={'action':'messages.back','instance':get()['current']['instance']}
+   request=urllib.request.Request(origin+'/api/phone/action?key=loop-test',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+   urllib.request.urlopen(request).close()
+  else:tap('.pm-back')
+  wait_messages(False)
  def shot(name):
   out=ROOT/'output/exhibition-validation';out.mkdir(parents=True,exist_ok=True);(out/(name+'.png')).write_bytes(base64.b64decode(cdp.call('Page.captureScreenshot',{'format':'png'},p)['data']))
  cdp.evaluate(hub,'Installation.playback.start(0);Installation.playback.pause(true,0)');jump(1)
@@ -58,7 +67,7 @@ try:
   if i==4:shot('loop-messages');assert not cdp.evaluate(p,'PhoneView.playable')
   tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.open&&PhoneView.messages.conversationId===null'));assert cdp.evaluate(p,"document.querySelectorAll('.pm-conversation').length")==2
   if i==5:shot('loop-two-conversations')
-  tap('.pm-back');wait_messages(False);assert cdp.evaluate(p,'PhoneView.state.mode')==base
+  leave_inbox();assert cdp.evaluate(p,'PhoneView.state.mode')==base
   for n,delivery in enumerate(server.scene_messages[name][1:],1):
    jump(start+delivery['at']-1);assert get()['phoneState']['total']==5+4*i+n
    before=time.time()*1000;jump(start+delivery['at']);received=get()['phoneState']['messages'][-1]
@@ -70,7 +79,7 @@ try:
     assert cdp.evaluate(p,"document.querySelector('.pm-thread').scrollHeight>document.querySelector('.pm-thread').clientHeight+100")
    if i==5 and n==3:
     assert cdp.evaluate(p,"document.querySelector('.pm-thread').scrollTop")==0,'Incoming long SMS must not move a reader at the beginning'
-    shot('neighbor-reading');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
+    shot('neighbor-reading');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
   if i==5:shot('neighbor-lock')
   preview=cdp.evaluate(p,"(()=>{const e=document.querySelector('.pm-lock .pm-preview'),s=getComputedStyle(e);return {height:e.clientHeight,line:parseFloat(s.lineHeight),full:e.textContent}})()")
   assert preview['height']<=preview['line']*2+1 and preview['full']==server.scene_messages[name][-1]['text']
@@ -92,10 +101,10 @@ try:
  tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'))
  tap('[data-conversation="neighbor"]');L.wait_for(lambda:cdp.evaluate(p,"PhoneView.messages.conversationId==='neighbor'"))
  assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in server.scene_messages['dog']]
- shot('loop-neighbor-thread');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
+ shot('loop-neighbor-thread');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
  # The final round ends at 688900; after stowing, the dog scene starts at 690000.
  jump(975000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==975000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
- tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
+ tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
  # Real power gems in every round: the host extends the scene until settlement finishes.
  cdp.evaluate(hub,"(()=>{const original=BlitzGame.create;BlitzGame.create=seed=>{const board=Array.from({length:64},(_,i)=>((i/8|0)*2+i%8)%7);board[27]=24;return original(seed,board)}})()")
  for start,duration in zip(starts[:4],lengths[:4]):jump(975000+start+server.scene_messages[ids[starts.index(start)]] [-1]['at'])
