@@ -9,6 +9,7 @@ import socket
 import threading
 import time
 import urllib.parse
+import uuid
 from exhibition_store import ExhibitionStore, CONVERSATIONS
 
 
@@ -26,6 +27,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
 
     def __init__(self, root, token, port=0, host='0.0.0.0', storage_path=None, event_origins=()):
         self.token = token
+        self.server_id = uuid.uuid4().hex
         self.state = None
         self.state_received = 0
         self.inputs = []
@@ -176,6 +178,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 data['videoSeek'] = self.server.current_video_seek()
                 data['connected'] = self.server.state is not None and time.monotonic() - self.server.state_received < 3
             data['serverTime'] = time.time() * 1000
+            data['serverId'] = self.server.server_id
             return self.reply(data)
         if self.client_address[0] not in ('127.0.0.1', '::1'):
             allowed = {'/phone.html', '/phone.js', '/phone.css', '/device-screen.js', '/exhibition-playback.js', '/media/blank-video.webm', '/media/youtube-short.mp4', '/video-controls.js', '/video-controls.css',

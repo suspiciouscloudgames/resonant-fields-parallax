@@ -5,6 +5,7 @@
   });
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');
   const key=new URLSearchParams(location.search).get('key')||'',client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  let serverId=null;
   let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,selected=-1,down=null,pending=null,lastRound=null,lastRevision=-1,lastInteraction=0,videoCanvasKey=null;
   const video=document.getElementById('phone-video');DeviceScreen.setVideo(video);
   const videoControls=VideoControls.create(async(position,round)=>{
@@ -17,7 +18,10 @@
   async function poll(){
     const sent=performance.now();
     try{const r=await fetch('/api/state?key='+encodeURIComponent(key),{cache:'no-store',signal:AbortSignal.timeout(2500)});if(!r.ok)throw Error('Not connected');
-      const data=await r.json();if(snapshot?.phoneState?.sceneInstance===data.phoneState?.sceneInstance&&snapshot.phoneState.ui.revision>data.phoneState.ui.revision)data.phoneState=snapshot.phoneState;received=performance.now();snapshot=data;DeviceScreen.setVideoSeek(data.videoSeek||null);lastGood=received;
+      const data=await r.json();
+      if(serverId&&data.serverId&&serverId!==data.serverId){location.reload();return;}
+      serverId=data.serverId||serverId;
+      if(snapshot?.phoneState?.sceneInstance===data.phoneState?.sceneInstance&&snapshot.phoneState.ui.revision>data.phoneState.ui.revision)data.phoneState=snapshot.phoneState;received=performance.now();snapshot=data;DeviceScreen.setVideoSeek(data.videoSeek||null);lastGood=received;
       snapshot.elapsedAtReceive=data.elapsed+(!data.paused&&data.started?Math.max(0,data.serverTime-data.observedAt)+(received-sent)/2:0);
     }catch{}finally{setTimeout(poll,100);}
   }
@@ -77,6 +81,6 @@
   document.getElementById('close-operator').onclick=()=>document.getElementById('operator').hidden=true;
   addEventListener('keydown',async e=>{if(e.key.toLowerCase()!=='h')return;const panel=document.getElementById('operator');panel.hidden=!panel.hidden;
     if(!panel.hidden){try{const info=await(await fetch('/api/info?key='+encodeURIComponent(key))).json();const a=document.getElementById('phone-link');a.textContent=info.phoneUrl;a.href=info.phoneUrl;}catch{}}});
-  window.PhoneView={get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return selected;},get pending(){return !!pending;}};
+  window.PhoneView={get serverId(){return serverId;},get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return selected;},get pending(){return !!pending;}};
   poll();requestAnimationFrame(frame);
 })();

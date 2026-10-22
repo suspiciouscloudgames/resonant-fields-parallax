@@ -7,3 +7,8 @@ output/exhibition-validation/
 runtime-data/
 *.sqlite3
 *.sqlite3-*
+
+private/
+*.keystore
+output/Exhibition-Mobile.apk*
+output/exhibition-update.json

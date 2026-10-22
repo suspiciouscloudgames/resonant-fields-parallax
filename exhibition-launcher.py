@@ -18,6 +18,7 @@ import uuid
 import argparse
 import sys
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 
 log = logging.getLogger('exhibition')
@@ -25,6 +26,20 @@ log = logging.getLogger('exhibition')
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT))
 from exhibition_server import ExhibitionServer
+from exhibition_discovery import Discovery
+
+
+def pairing_key(records):
+    """Keep mobile pairing across restarts and application releases."""
+    path = records / 'pairing-key'
+    if path.exists():
+        value = path.read_text(encoding='ascii').strip()
+        if not re.fullmatch(r'[a-f0-9]{12,64}', value):
+            raise ValueError('Invalid saved mobile pairing key')
+        return value
+    value = uuid.uuid4().hex
+    path.write_text(value, encoding='ascii')
+    return value
 
 
 class CDP:
@@ -332,9 +347,11 @@ def main():
     parser.add_argument('--port',type=int,default=8770)
     parser.add_argument('--event-origin',action='append',default=[])
     parser.add_argument('--start-scene',choices=['smoking','rain','youtube','police','game','dog'])
+    parser.add_argument('--data-dir',type=Path,default=ROOT/'runtime-data')
+    parser.add_argument('--managed',action='store_true')
     args=parser.parse_args()
-    records=ROOT/'runtime-data'
-    records.mkdir(exist_ok=True)
+    records=args.data_dir.resolve()
+    records.mkdir(parents=True,exist_ok=True)
     handler=RotatingFileHandler(str(records/'exhibition.log'),maxBytes=1024*1024,backupCount=3,encoding='utf-8')
     handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
     log.addHandler(handler);log.setLevel(logging.INFO)
@@ -343,6 +360,8 @@ def main():
     cdp = None
     process = None
     profile = None
+    discovery = None
+    exit_code = 1
     try:
         if os.name != "nt" and not args.preview:
             raise RuntimeError("이 실행 파일은 Windows 전시 PC용입니다.")
@@ -350,14 +369,18 @@ def main():
         keep_awake(True)
         # The browser profile is temporary and never touches the user's browser.
         profile = Path(tempfile.mkdtemp(prefix="resonant-exhibition-"))
-        token = uuid.uuid4().hex[:12]
-        for port in range(args.port,args.port+10):
+        token = pairing_key(records)
+        # Managed installations always use the paired port, never silently move.
+        for port in range(args.port,args.port+(1 if args.managed else 10)):
             try:
-                server = ExhibitionServer(ROOT,token,port=port,storage_path=ROOT/'runtime-data/messages.sqlite3',event_origins=args.event_origin)
+                server = ExhibitionServer(ROOT,token,port=port,storage_path=records/'messages.sqlite3',event_origins=args.event_origin)
                 break
             except OSError:
-                if port==args.port+9:raise
+                if args.managed or port==args.port+9:raise
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        if not args.preview:
+            discovery=Discovery(token,server.server_port)
+            discovery.start()
         origin = "http://127.0.0.1:" + str(server.server_port)
         print('PHONE: '+server.phone_url,flush=True)
         log.info('Phone connection: %s; browser=%s',server.phone_url,browser)
@@ -369,7 +392,10 @@ def main():
         last_heartbeat=time.monotonic();failures=0
         while process.poll() is None:
             try:
-                if not supervise_outputs(cdp,session,outputs,origin,token,args.preview):break
+                if (records/'stop-request').exists():
+                    log.info('Managed stop requested');exit_code=0;break
+                if not supervise_outputs(cdp,session,outputs,origin,token,args.preview):
+                    exit_code=20;break
                 failures=0
                 if time.monotonic()-last_heartbeat>=60:
                     state=server.state or {}
@@ -383,11 +409,11 @@ def main():
             log.error('Browser exited unexpectedly: code=%s',process.returncode)
     except (ConnectionError, OSError) as error:
         log.exception('Exhibition connection or OS error')
-        if process is None or process.poll() is None:
+        if not args.managed and (process is None or process.poll() is None):
             show_error(str(error))
     except Exception as error:
         log.exception('Exhibition failed')
-        show_error(str(error))
+        if not args.managed:show_error(str(error))
     finally:
         if cdp:
             try:
@@ -403,11 +429,13 @@ def main():
         if server:
             server.shutdown()
             server.server_close()
+        if discovery:discovery.close()
         if profile:
             shutil.rmtree(str(profile), ignore_errors=True)
         keep_awake(False)
         log.info('Exhibition stopped')
         handler.close();log.removeHandler(handler)
+    return exit_code
 
 
 def show_error(message):
@@ -419,4 +447,4 @@ def show_error(message):
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

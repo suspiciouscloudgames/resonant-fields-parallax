@@ -1,0 +1,10 @@
+<resources>
+  <style name="ExhibitionTheme" parent="android:style/Theme.Material.NoActionBar">
+    <item name="android:windowActionModeOverlay">true</item>
+    <item name="android:windowBackground">#101318</item>
+    <item name="android:fontFamily">sans</item>
+    <item name="android:colorAccent">#B4BDB6</item>
+    <item name="android:windowLightStatusBar">false</item>
+    <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+  </style>
+</resources>
