@@ -116,7 +116,7 @@ window.SceneDogEncounter=(()=>{
     if(!dogSprite){dogSprite=document.createElement('canvas');dogSprite.width=dogSprite.height=48;}
     const c=dogSprite.getContext('2d');c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,48,48);c.setTransform(3,0,0,3,24,36);
     const gait=a.travel/6*Math.PI*2;
-    const paper='#918e7e',light='#a3a193',shade='#66695d',ink='#41483e',dust='#7b7e70';
+    const paper='#b8904f',light='#cfad6c',shade='#846039',ink='#57432c',dust='#a47a42';
     const direction=a.direction||[0,a.view==='rear'?-1:1],norm=Math.hypot(...direction)||1;
     const fx=direction[0]/norm,fy=direction[1]/norm;
     // Rotate the entire quadruped on the ground plane, including every footfall.
