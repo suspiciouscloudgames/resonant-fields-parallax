@@ -1,6 +1,6 @@
 (()=>{
   const messages=PhoneMessages.create({
-    async action(action,text){try{const r=await fetch('/api/phone/action?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'messages.'+action,text,instance:current.instance})});if(r.ok){const data=await r.json();snapshot.phoneState=data.phoneState;return data.phoneState;}}catch{}},
+    async action(action,text){try{const r=await fetch('/api/phone/action?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'messages.'+action,text,instance:current.instance})});if(r.ok){const data=await r.json();if(data.phoneState.sceneInstance===current.instance){snapshot.phoneState=data.phoneState;return data.phoneState;}}}catch{}},
     async loadOlder(before){return (await fetch('/api/messages?key='+encodeURIComponent(key)+'&before='+before)).json();}
   });
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');

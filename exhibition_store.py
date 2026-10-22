@@ -1,5 +1,6 @@
 """Durable local message history and replayable events owned by the dual-display PC."""
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 import sqlite3
 import time
@@ -15,7 +16,27 @@ class ExhibitionStore:
           CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, event_key TEXT UNIQUE, type TEXT NOT NULL, occurred_at INTEGER NOT NULL, payload TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT);
         ''')
+        columns={r['name'] for r in self.db.execute('PRAGMA table_info(messages)')}
+        if 'is_preset' not in columns:
+            self.db.execute('ALTER TABLE messages ADD COLUMN is_preset INTEGER NOT NULL DEFAULT 0')
+        # These are existing conversations, not new incoming-message events.
+        afternoon=(datetime.now()-timedelta(days=7)).replace(hour=14,minute=0,second=0,microsecond=0)
+        with self.db:
+            for i in range(5):
+                self.db.execute('INSERT OR IGNORE INTO messages(delivery_key,text,received_at,incoming,scene_id,scene_number,scene_instance,is_preset) VALUES(?,?,?,?,?,?,?,1)',
+                    ('preset:'+str(i),'0 메시지',int((afternoon+timedelta(minutes=i*7)).timestamp()*1000),1,'preset',0,'preset'))
         self.db.commit()
+    def begin_loop(self,loop_id,scene,now=None):
+        if self.meta('loopId')==loop_id:return False
+        now=int(now if now is not None else time.time()*1000)
+        read_through=self.db.execute('SELECT COALESCE(MAX(id),0) FROM messages WHERE is_preset=1').fetchone()[0]
+        with self.db:
+            self.db.execute('DELETE FROM messages WHERE is_preset=0')
+            for key,value in [('loopId',loop_id),('readThrough',read_through)]:
+                self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',(key,json.dumps(value)))
+            self.db.execute('INSERT OR IGNORE INTO events(event_key,type,occurred_at,payload) VALUES(?,?,?,?)',
+                ('loop:'+loop_id+':messages.reset','messages.reset',now,json.dumps({'loopId':loop_id,'presetCount':5,'scene':self.scene(scene)},ensure_ascii=False)))
+        return True
     def emit(self,event_type,payload,key=None,now=None):
         now=int(now if now is not None else time.time()*1000)
         if key and self.db.execute('SELECT 1 FROM events WHERE event_key=?',(key,)).fetchone():return None
@@ -36,10 +57,10 @@ class ExhibitionStore:
         return {k:scene.get(k) for k in ('id','index','step','cycle','instance','side','elapsed','duration')}
     def messages(self,before=None,limit=100):
         rows=self.db.execute('SELECT * FROM messages WHERE id<? ORDER BY id DESC LIMIT ?',(before if before is not None else 9223372036854775807,limit)).fetchall()
-        items=[{'id':r['id'],'text':r['text'],'receivedAt':r['received_at'],'incoming':bool(r['incoming']),'sceneId':r['scene_id'],'sceneNumber':r['scene_number'],'sceneInstance':r['scene_instance']} for r in reversed(rows)]
+        items=[{'id':r['id'],'text':r['text'],'receivedAt':r['received_at'],'incoming':bool(r['incoming']),'sceneId':r['scene_id'],'sceneNumber':r['scene_number'],'sceneInstance':r['scene_instance'],'preset':bool(r['is_preset'])} for r in reversed(rows)]
         total=self.db.execute('SELECT COUNT(*) FROM messages').fetchone()[0]
         more=bool(items and self.db.execute('SELECT 1 FROM messages WHERE id<? LIMIT 1',(items[0]['id'],)).fetchone())
-        return {'items':items,'total':total,'hasMore':more}
+        return {'items':items,'total':total,'hasMore':more,'loopId':self.meta('loopId')}
     def events(self,after=0,limit=100):
         rows=self.db.execute('SELECT * FROM events WHERE id>? ORDER BY id LIMIT ?',(after,limit)).fetchall()
         return [{'schemaVersion':1,'id':r['id'],'source':'dual-display','type':r['type'],'occurredAt':r['occurred_at'],'payload':json.loads(r['payload'])} for r in rows]

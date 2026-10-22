@@ -1,1 +1,49 @@
-{"schemaVersion":1,"source":"dual-display","transport":"SSE","endpoint":"/api/events/stream?key={pairingKey}&after={lastEventId}","replay":"Last-Event-ID or after; persistent increasing id; consumers deduplicate by id","clock":"occurredAt and receivedAt are Unix milliseconds at receipt on the exhibition PC","types":["scene.started","message.received","message.replied","phone.screen.changed","game.round.started","game.round.ended","game.completed","video.seek"],"messageExample":{"schemaVersion":1,"id":42,"source":"dual-display","type":"message.received","occurredAt":1792600000000,"payload":{"message":{"id":7,"text":"1씬 테스트","receivedAt":1792600000000,"incoming":true,"sceneId":"smoking","sceneNumber":1,"sceneInstance":"run:6"},"scene":{"id":"smoking","index":0,"step":6,"cycle":1,"instance":"run:6","side":"indoor","elapsed":22500,"duration":45000}}},"crossOrigin":"Pass --event-origin https://exact-consumer-origin to the launcher. No destination is enabled by default."}
+{
+  "schemaVersion": 1,
+  "source": "dual-display",
+  "transport": "SSE",
+  "endpoint": "/api/events/stream?key={pairingKey}&after={lastEventId}",
+  "replay": "Last-Event-ID or after; persistent increasing id; consumers deduplicate by id",
+  "clock": "occurredAt and receivedAt are Unix milliseconds at receipt on the exhibition PC",
+  "types": [
+    "scene.started",
+    "message.received",
+    "message.replied",
+    "phone.screen.changed",
+    "game.round.started",
+    "game.round.ended",
+    "game.completed",
+    "video.seek",
+    "messages.reset"
+  ],
+  "messageExample": {
+    "schemaVersion": 1,
+    "id": 42,
+    "source": "dual-display",
+    "type": "message.received",
+    "occurredAt": 1792600000000,
+    "payload": {
+      "message": {
+        "id": 7,
+        "text": "1씬 테스트",
+        "receivedAt": 1792600000000,
+        "incoming": true,
+        "sceneId": "smoking",
+        "sceneNumber": 1,
+        "sceneInstance": "run:6"
+      },
+      "scene": {
+        "id": "smoking",
+        "index": 0,
+        "step": 6,
+        "cycle": 1,
+        "instance": "run:6",
+        "side": "indoor",
+        "elapsed": 22500,
+        "duration": 45000
+      }
+    }
+  },
+  "crossOrigin": "Pass --event-origin https://exact-consumer-origin to the launcher. No destination is enabled by default.",
+  "inbox": "Five fixed preset messages plus current-loop messages. messages.reset clears transient inbox entries at each new loop; event replay remains durable."
+}

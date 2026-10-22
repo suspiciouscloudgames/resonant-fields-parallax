@@ -66,11 +66,14 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
 
     def phone_state(self):
         history=self.store.messages(limit=100)
-        return {'ui':dict(self.ui),'messages':history['items'],'total':history['total'],'hasMore':history['hasMore'],'sceneInstance':self.last_scene}
+        return {'ui':dict(self.ui),'messages':history['items'],'total':history['total'],'hasMore':history['hasMore'],'sceneInstance':self.last_scene,'loopId':history['loopId']}
 
     def receive_state(self,value):
         self.state=value;self.state_received=time.monotonic()
         c=value['current'];now=int(time.time()*1000);mode=c['phone']['mode']
+        loop_id=value['runId']+':'+str(c.get('cycle',0))
+        if self.store.begin_loop(loop_id,c,now=now):
+            self.ui.update(open=False,readThrough=self.store.meta('readThrough',0),dismissed=0,revision=self.ui['revision']+1)
         if c['instance']!=self.last_scene:
             self.last_scene=c['instance'];self.ui.update(open=False,dismissed=0,revision=self.ui['revision']+1)
             self.store.emit('scene.started',{'scene':self.store.scene(c),'baseMode':mode},key=c['instance']+':scene',now=now)

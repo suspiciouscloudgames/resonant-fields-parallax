@@ -52,7 +52,8 @@ try:
  publish(game={'round':'test:4','revision':0,'phase':'fall','stage':'play','roundNumber':1})
  assert move(requestId='phone:5')[0]==409
  publish()
- assert call('/api/phone/action?key=test-key',{'action':'messages.open','instance':'test:4'})[0]==409
+ assert call('/api/phone/action?key=test-key',{'action':'messages.open','instance':'test:4'})[0]==200
+ assert call('/api/phone/action?key=test-key',{'action':'messages.back','instance':'test:4'})[0]==200
  with server.state_lock:
   server.store.message('5씬 테스트',True,server.state['current'])
  assert call('/api/phone/action?key=test-key',{'action':'messages.open','instance':'test:4'})[0]==200

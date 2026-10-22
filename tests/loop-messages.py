@@ -22,12 +22,19 @@ try:
  def shot(name):
   out=ROOT/'output/exhibition-validation';out.mkdir(parents=True,exist_ok=True);(out/(name+'.png')).write_bytes(base64.b64decode(cdp.call('Page.captureScreenshot',{'format':'png'},p)['data']))
  cdp.evaluate(hub,'Installation.playback.start(0);Installation.playback.pause(true,0)');jump(1)
+ presets=get()['phoneState']['messages'];assert len(presets)==5
+ assert all(m['preset'] and m['text']=='0 메시지' for m in presets)
+ for m in presets:
+  import datetime
+  stamp=datetime.datetime.fromtimestamp(m['receivedAt']/1000)
+  assert stamp.date()==datetime.datetime.now().date()-datetime.timedelta(days=7) and stamp.hour==14
+ assert not any(e['type']=='message.received' for e in get('/api/events')['events'])
  starts=[0,45000,125000,225000,385000,575000];lengths=[45000,80000,100000,160000,190000,145000];ids=['smoking','rain','youtube','police','game','dog']
  for i,(start,duration,name) in enumerate(zip(starts,lengths,ids)):
-  jump(start+duration//2-1);assert get()['phoneState']['total']==i
+  jump(start+duration//2-1);assert get()['phoneState']['total']==5+i
   before=time.time()*1000;jump(start+duration//2);s=get();assert s['current']['id']==name
   msg=s['phoneState']['messages'][-1];assert msg['text']==str(i+1)+'씬 테스트';assert before-100<=msg['receivedAt']<=time.time()*1000+100
-  L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.items.length')==i+1)
+  L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.items.length')==i+6)
   base='youtube' if i==2 else 'game' if i==4 else 'clock';assert cdp.evaluate(p,'PhoneView.state.mode')==base
   selector='.pm-banner:not(.pm-lock)' if base!='clock' else '.pm-lock'
   L.wait_for(lambda:cdp.evaluate(p,'!document.querySelector('+json.dumps(selector)+').hidden'))
@@ -35,13 +42,14 @@ try:
   tap(selector);wait_messages(True)
   L.wait_for(lambda:cdp.evaluate(hub,"DeviceScreen.pixels().some(v=>v==='rgb(255,255,255)')"))
   label=cdp.evaluate(p,"document.querySelector('.pm-back').textContent");assert ('잠금화면' if base=='clock' else '영상' if base=='youtube' else '게임') in label
-  assert cdp.evaluate(p,"document.querySelectorAll('.pm-row time').length")==i+1
+  assert cdp.evaluate(p,"document.querySelectorAll('.pm-row time').length")==i+6
   if i==4:shot('loop-messages');assert not cdp.evaluate(p,'PhoneView.playable')
   tap('.pm-back');wait_messages(False);assert cdp.evaluate(p,'PhoneView.state.mode')==base
   jump(start+duration-1200)
-  assert get()['phoneState']['total']==i+1
+  assert get()['phoneState']['total']==i+6
  # Third game ended at 573900, clock during stow; dog begins exactly at 575000.
- jump(720000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==720000;assert get()['phoneState']['total']==6
+ jump(720000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==720000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
+ tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==['0 메시지']*5;tap('.pm-back');wait_messages(False)
  # Real power gems in every round: the host extends the scene until settlement finishes.
  cdp.evaluate(hub,"(()=>{const original=BlitzGame.create;BlitzGame.create=seed=>{const board=Array.from({length:64},(_,i)=>((i/8|0)*2+i%8)%7);board[27]=24;return original(seed,board)}})()")
  for start,duration in zip(starts[:4],lengths[:4]):jump(720000+start+duration//2)
@@ -49,9 +57,9 @@ try:
  settlement=cdp.evaluate(hub,'BlitzSession.create(Installation.playback.status.current.instance).advance(1000000).completeAt');game_end=720000+385000+1800+settlement+1100
  jump(720000+575000);assert get()['current']['id']=='game';assert get()['current']['phone']['mode']=='game'
  jump(game_end-1100);s=get();assert s['game']['complete'];assert len(s['game']['roundResults'])==3;assert s['current']['phone']['mode']=='clock';assert all(r['score']>0 for r in s['game']['roundResults'])
- jump(game_end);assert get()['current']['id']=='dog';jump(game_end+72500);jump(game_end+145000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+145000-720000;assert get()['phoneState']['total']==12
+ jump(game_end);assert get()['current']['id']=='dog';jump(game_end+72500);jump(game_end+145000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+145000-720000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
  # Phone reload retains history; late subscribers replay exactly the same durable events.
- cdp.call('Page.reload',{},p);L.wait_for(lambda:cdp.evaluate(p,'window.PhoneView?.messages.items.length')==12)
+ cdp.call('Page.reload',{},p);L.wait_for(lambda:cdp.evaluate(p,'window.PhoneView?.messages.items.length')==5)
  events=get('/api/events')['events'];received=[e for e in events if e['type']=='message.received'];assert len(received)==12;assert len({e['id'] for e in events})==len(events)
  req=urllib.request.Request(origin+'/api/events/stream?key=loop-test&after='+str(received[-1]['id']-1),headers={'Origin':'https://other-installation.test'})
  with urllib.request.urlopen(req,timeout=5) as stream:
@@ -63,7 +71,7 @@ try:
  plate=cdp.evaluate(hub,"SceneGame.background.toDataURL().split(',')[1]");assert base64.b64decode(plate)==(ROOT/'output/mobile-baseline/background.png').read_bytes()
  assert cdp.evaluate(hub,'DeviceScreen.pixelHeight>DeviceScreen.pixelWidth')
  saved_cursor=get()['eventCursor']
- print('PASS: two complete real host loops (720000ms / dynamic length with power settlements), 12 actual-time SMS, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
+ print('PASS: two complete real host loops (720000ms / dynamic length with power settlements), 12 actual-time SMS events, five fixed presets after each loop, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
 finally:
  if cdp:
   try:cdp.call('Browser.close')
@@ -76,5 +84,5 @@ finally:
  # Restart persistence uses the same database and event IDs.
  from exhibition_store import ExhibitionStore
  store=ExhibitionStore(db)
- if 'saved_cursor' in locals():assert store.messages()['total']==12;assert store.cursor()==saved_cursor;print('PASS: message/event history survives PC server restart.',flush=True)
+ if 'saved_cursor' in locals():assert store.messages()['total']==5;assert store.messages()['items']==presets;assert store.cursor()==saved_cursor;print('PASS: current-loop inbox and event history survive PC server restart.',flush=True)
  store.close();shutil.rmtree(str(folder),ignore_errors=True)
