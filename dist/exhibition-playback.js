@@ -5,7 +5,7 @@ window.ExhibitionPlayback=(()=>{
     {id:'rain',label:'비',side:'outdoor',number:3,duration:115000,outsideDuration:40000,messageAt:40000},
     {id:'youtube',label:'유튜브',side:'indoor',number:2,duration:100000},
     {id:'police',label:'경찰차',side:'outdoor',number:1,duration:195000,outsideDuration:40000,messageAt:40000},
-    {id:'game',label:'게임',side:'indoor',number:3,duration:230000,readingHold:{at:20000,duration:40000},messageAt:24000},
+    {id:'game',label:'게임',side:'indoor',number:3,duration:190000,messageAt:24000},
     {id:'dog',label:'들개',side:'outdoor',number:2,duration:285000,outsideDuration:145000,messageAt:42000},
   ];
   function cueAt(cue,index,step,within,time,sceneStart){
@@ -34,19 +34,17 @@ window.ExhibitionPlayback=(()=>{
       for(let guard=0;guard<100000;guard++){
         let cue={...cues[index]},within=elapsed-sceneStart,game=null;
         const instance=runId+':'+step;
-        const hold=cue.readingHold,held=hold?Math.max(0,Math.min(hold.duration,within-hold.at)):0;
-        const reading=!!hold&&within>=hold.at&&within<hold.at+hold.duration;
         if(cue.id==='game'&&engine.gameSession){
-          game=engine.gameSession(instance,Math.max(0,within-1800-held));
-          cue.duration=game.complete?1800+game.completeAt+(hold?.duration||0)+1100:Math.max(cue.duration,within+1101);
+          game=engine.gameSession(instance,Math.max(0,within-1800));
+          cue.duration=game.complete?1800+game.completeAt+1100:Math.max(cue.duration,within+1101);
           cue.phases=engine.exhibitionClip(cue.side,cue.number,cue);
         }
         if(within>=cue.duration){sceneStart+=cue.duration;step++;index=(index+1)%cues.length;if(index===0){lastCycleMilliseconds=sceneStart-cycleStart;cycleStart=sceneStart;}continue;}
         current=cueAt(cue,index,step,within,elapsed,sceneStart);current.instance=instance;current.cycle=Math.floor(step/cues.length);
         current.phone.round=instance;
-        current.gameTime=Math.max(0,within-1800-held);current.phone.paused=reading;current.phone.reading=reading;
+        current.gameTime=Math.max(0,within-1800);current.phone.paused=false;
         if(current.phone.mode==='game'&&game)current.phone={...current.phone,elapsed:game.elapsed,round:game.round,stage:game.stage,remaining:Math.max(0,60000-game.elapsed)};
-        if(cue.id==='game'&&game?.complete)current.phone.sleepElapsed=within-(1800+game.completeAt+(hold?.duration||0));
+        if(cue.id==='game'&&game?.complete)current.phone.sleepElapsed=within-(1800+game.completeAt);
         engine.renderExhibition(current.side,current.number,current.clipTime,current.clock,current);return;
       }
       throw Error('Exhibition clock jump is too large');

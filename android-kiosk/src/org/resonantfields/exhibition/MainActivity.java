@@ -5,10 +5,13 @@ import android.app.ActivityManager;
 import android.app.KeyguardManager;
 import android.content.Intent;
 import android.graphics.Color;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebResourceError;
@@ -29,11 +32,13 @@ import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.net.URL;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 /** Native display shell; all scenes, game logic and messages stay on the PC. */
 public class MainActivity extends Activity {
@@ -44,6 +49,46 @@ public class MainActivity extends Activity {
     private volatile String endpoint;
     private volatile boolean closed;
     private boolean failed;
+    private boolean resumed, vibrationActive;
+    private int pageGeneration, pendingVibrations;
+    private Vibrator vibrator;
+    private String vibrationStatus="";
+    private void vibrationStatus(String status){if(!status.equals(vibrationStatus)){vibrationStatus=status;android.util.Log.d("ExhibitionVibration",status);}}
+    private final MessageArrivalTracker arrivals=new MessageArrivalTracker();
+    private static final String MESSAGE_STATE="(()=>{const p=window.PhoneView;if(!p||!p.connected||!p.state.instance)return null;return p.messages.items.filter(m=>m.incoming&&!m.preset).map(m=>[m.sceneInstance,m.id,m.receivedAt].join(':'));})()";
+    private final Runnable vibrateNext=new Runnable(){
+        @Override public void run(){
+            if(closed||!resumed||pendingVibrations<=0){pendingVibrations=0;vibrationActive=false;return;}
+            vibrationActive=true;
+            pendingVibrations--;
+            if(vibrator!=null&&vibrator.hasVibrator())try{
+                vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,180,100,180},-1),
+                    new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            }catch(SecurityException ignored){}
+            handler.postDelayed(this,650);
+        }
+    };
+    private final Runnable observeMessages=new Runnable(){
+        @Override public void run(){
+            if(closed||!resumed||web==null){vibrationStatus("waiting for active WebView");return;}
+            final int generation=pageGeneration;
+            if(failed||!endpoint.equals(web.getUrl())){vibrationStatus("waiting for paired page");arrivals.reconnect();handler.postDelayed(this,350);return;}
+            // Read only message identities from our paired page; no native JS bridge is exposed.
+            web.evaluateJavascript(MESSAGE_STATE,result->{
+                if(closed||!resumed||generation!=pageGeneration)return;
+                try{
+                    if(result==null||"null".equals(result)){vibrationStatus("waiting for connected message snapshot");arrivals.reconnect();return;}
+                    JSONArray keys=new JSONArray(result);ArrayList<String> incoming=new ArrayList<>();
+                    for(int i=0;i<keys.length();i++)incoming.add(keys.getString(i));
+                    int count=arrivals.receive(incoming);
+                    vibrationStatus("observing "+incoming.size()+" incoming messages; new="+count);
+                    if(count>0){pendingVibrations+=count;if(!vibrationActive){vibrationActive=true;handler.post(vibrateNext);}}
+                }catch(Exception error){vibrationStatus("message snapshot error: "+error.getClass().getSimpleName());arrivals.reconnect();}
+            });
+            handler.postDelayed(this,350);
+        }
+    };
     private final ScheduledExecutorService network=Executors.newSingleThreadScheduledExecutor();
     private final Runnable retry = () -> { if (web != null && failed) web.loadUrl(endpoint); };
 
@@ -66,7 +111,11 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
+        vibrator=(Vibrator)getSystemService(VIBRATOR_SERVICE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        WindowManager.LayoutParams display=getWindow().getAttributes();
+        display.screenBrightness=0.55f;
+        getWindow().setAttributes(display);
         root=new FrameLayout(this);root.setBackgroundColor(Color.rgb(16,19,24));setContentView(root);
         endpoint=getPreferences(MODE_PRIVATE).getString("endpoint","");
         String supplied=getIntent().getStringExtra("url");
@@ -96,6 +145,13 @@ public class MainActivity extends Activity {
         box.addView(label("시작 후 앱 고정 안내가 나오면 확인해 주세요. 잠금 해제에는 휴대전화의 PIN을 사용합니다."));
         KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
         if(!keyguard.isDeviceSecure())box.addView(label("관객이 앱 고정을 해제하지 못하도록 휴대전화 잠금 PIN도 설정해 주세요."));
+        android.app.NotificationManager notifications=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        if(!notifications.areNotificationsEnabled()){
+            box.addView(label("문자가 올 때 진동이 울리려면 앱 알림을 허용해 주세요."));
+            Button allow=new Button(this);allow.setText("문자 진동 알림 허용");box.addView(allow);
+            allow.setOnClickListener(v->startActivity(new android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName())));
+        }
         Button start=new Button(this);start.setText("전시 시작");box.addView(start);
         start.setOnClickListener(v->{openExhibition();
             ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
@@ -148,7 +204,7 @@ public class MainActivity extends Activity {
                 // Never leave the paired phone page or open another application.
                 return !endpoint.equals(request.getUrl().toString());
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){failed=false;}
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){failed=false;pageGeneration++;arrivals.reconnect();}
             @Override public void onPageFinished(WebView view,String url){
                 if(!failed){offline.setVisibility(View.GONE);handler.removeCallbacks(retry);immersive();}
             }
@@ -160,12 +216,14 @@ public class MainActivity extends Activity {
         root.addView(web,new FrameLayout.LayoutParams(-1,-1));offline=label("전시 PC 연결을 기다리는 중");
         offline.setBackgroundColor(Color.rgb(16,19,24));offline.setGravity(17);offline.setVisibility(View.GONE);
         root.addView(offline,new FrameLayout.LayoutParams(-1,-1));web.loadUrl(endpoint);immersive();
+        handler.removeCallbacks(observeMessages);handler.post(observeMessages);
     }
     private void immersive(){getWindow().getDecorView().setSystemUiVisibility(
         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
         View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);}
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
-    @Override public void onResume(){super.onResume();immersive();}
+    @Override public void onResume(){super.onResume();resumed=true;immersive();handler.removeCallbacks(observeMessages);handler.post(observeMessages);}
+    @Override public void onPause(){resumed=false;pageGeneration++;arrivals.reconnect();handler.removeCallbacks(observeMessages);handler.removeCallbacks(vibrateNext);pendingVibrations=0;vibrationActive=false;if(vibrator!=null)vibrator.cancel();super.onPause();}
     @Override public void onBackPressed(){if(web!=null){web.evaluateJavascript("document.activeElement && document.activeElement.blur()",null);immersive();}}
-    @Override public void onDestroy(){closed=true;network.shutdownNow();handler.removeCallbacks(retry);if(web!=null){web.stopLoading();web.destroy();}super.onDestroy();}
+    @Override public void onDestroy(){closed=true;network.shutdownNow();handler.removeCallbacksAndMessages(null);if(vibrator!=null)vibrator.cancel();if(web!=null){web.stopLoading();web.destroy();}super.onDestroy();}
 }

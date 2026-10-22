@@ -12,15 +12,12 @@
     if(type==='reply')local.messages.push({id:local.messages.length+1,text,incoming:false,conversationId,sender:'나',receivedAt:Date.now(),sceneInstance:'rehearsal'});
     local.total=local.messages.length;return local;
   }});
-  const canvas=document.getElementById('board');let round=1,engine=BlitzSession.create('rehearsal:'+Date.now()),started=0,selected=-1,down=null,elapsed=0,entry=0;
-  function position(e){const r=canvas.getBoundingClientRect();return BlitzView.hit(e.clientX-r.left,e.clientY-r.top,r.width,r.height);}
-  function play(a,b){if(messages.open||entry||engine.state.stage!=='play'||!BlitzGame.adjacent(a,b))return;if(engine.swap(a,b,elapsed))selected=-1;}
-  canvas.addEventListener('pointerdown',e=>{BlitzAudio.unlock();const cell=position(e);if(messages.open||entry||cell<0||engine.state.stage!=='play'||engine.state.phase!=='idle')return;if(!started)started=performance.now();e.preventDefault();canvas.setPointerCapture(e.pointerId);down={cell,x:e.clientX,y:e.clientY,id:e.pointerId,selected};if(selected<0)selected=cell;});
-  canvas.addEventListener('pointerup',e=>{if(!down||down.id!==e.pointerId)return;const p=down;down=null;if(messages.open||engine.state.stage!=='play'||engine.state.phase!=='idle')return;const dx=e.clientX-p.x,dy=e.clientY-p.y,r=canvas.getBoundingClientRect(),threshold=BlitzView.geometry(r.width,r.height).scale*56*.24;
-    if(Math.max(Math.abs(dx),Math.abs(dy))>threshold){const to=p.cell+(Math.abs(dx)>Math.abs(dy)?(dx>0?1:-1):(dy>0?8:-8));play(p.cell,to);}
-    else if(p.selected>=0&&p.selected!==p.cell&&BlitzGame.adjacent(p.selected,p.cell))play(p.selected,p.cell);else selected=p.selected===p.cell?-1:p.cell;
+  const canvas=document.getElementById('board');let round=1,engine=BlitzSession.create('rehearsal:'+Date.now()),started=0,elapsed=0,entry=0;
+  const input=BlitzInput.create(canvas,{
+    canPlay:()=>!messages.open&&!entry&&engine.state.stage==='play'&&engine.state.phase==='idle',
+    move:(a,b)=>engine.swap(a,b,elapsed),
+    interact(){BlitzAudio.unlock();if(!started)started=performance.now();}
   });
-  canvas.addEventListener('pointercancel',()=>{down=null;selected=-1;});canvas.addEventListener('contextmenu',e=>e.preventDefault());
   function frame(now){
     elapsed=started?now-started:0;
     const snapshot=engine.advance(elapsed),transition=snapshot.transition;round=snapshot.roundNumber;entry=snapshot.stage==='entry';
@@ -29,11 +26,11 @@
     if(snapshot.complete){local.ui.open=false;}
     const view={mode:snapshot.complete?'clock':'game',elapsed:snapshot.elapsed,round:snapshot.round,instance:'rehearsal'};
     messages.update(local,view);
-    if(messages.open){selected=-1;down=null;}
-    DeviceScreen.setPhoneState(local);DeviceScreen.setGame(snapshot);DeviceScreen.update(view);DeviceScreen.render(canvas,view,Date.now(),{selected,transition,notificationsInDOM:true});
+    input.update(snapshot,!messages.open);
+    DeviceScreen.setPhoneState(local);DeviceScreen.setGame(snapshot);DeviceScreen.update(view);DeviceScreen.render(canvas,view,Date.now(),{...input.visual,transition,notificationsInDOM:true});
     BlitzAudio.update({...view,paused:!started||messages.open||entry},snapshot);
     requestAnimationFrame(frame);
   }
-  window.GameTest={get state(){return {round,elapsed,started:!!started,selected,...engine.state};}};
+  window.GameTest={get state(){return {round,elapsed,started:!!started,selected:input.selected,...engine.state};}};
   requestAnimationFrame(frame);
 })();

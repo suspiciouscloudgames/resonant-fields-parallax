@@ -81,7 +81,6 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         self.store.set_meta('readThroughByConversation',self.ui['readThroughByConversation'])
 
     def receive_state(self,value):
-        previous=(self.state or {}).get('current') or {}
         self.state=value;self.state_received=time.monotonic()
         c=value['current'];now=int(time.time()*1000);mode=c['phone']['mode']
         loop_id=value['runId']+':'+str(c.get('cycle',0))
@@ -97,9 +96,6 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
             self.last_base_mode=mode
         if c['phone'].get('sceneLock') and self.ui['open']:
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
-        if previous.get('instance')==c['instance'] and previous.get('phone',{}).get('reading') and not c['phone'].get('reading'):
-            self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
-            self.store.emit('phone.screen.changed',{'scene':self.store.scene(c),'screen':mode,'action':'reading.completed','conversationId':None},key=c['instance']+':reading-completed',now=now)
         deliveries=self.scene_messages.get(c['id'],[{'id':'midpoint','at':c['messageAt'],'text':str(c['index']+1)+'씬 테스트'}])
         for delivery in deliveries:
             if c['elapsed']<delivery['at']:continue
@@ -182,7 +178,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.reply(data)
         if self.client_address[0] not in ('127.0.0.1', '::1'):
             allowed = {'/phone.html', '/phone.js', '/phone.css', '/device-screen.js', '/exhibition-playback.js', '/media/blank-video.webm', '/media/youtube-short.mp4', '/video-controls.js', '/video-controls.css',
-                       '/phone-messages.js', '/phone-messages.css', '/blitz-session.js', '/exhibition-events.js', '/blitz-game.js', '/blitz-view.js', '/blitz-audio.js', '/media/blitz/frame.png', '/media/blitz/board.png', '/media/blitz/gems.png',
+                       '/phone-messages.js', '/phone-messages.css', '/blitz-session.js', '/exhibition-events.js', '/blitz-game.js', '/blitz-view.js', '/blitz-input.js', '/blitz-audio.js', '/media/blitz/frame.png', '/media/blitz/board.png', '/media/blitz/gems.png',
                        '/media/blitz/recording.m4a', '/media/blitz/match.m4a', '/media/blitz/swap.m4a', '/media/blitz/power.m4a'}
             if parsed.path not in allowed:
                 return self.reply({'error': 'Not found'}, 404)
@@ -267,6 +263,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             ack = value.get('inputAck', 0)
             value = {k: value[k] for k in ('started', 'paused', 'elapsed', 'cues', 'runId', 'game', 'current', 'lastCycleMilliseconds')}
             value['observedAt'] = observed
+            value['inputAck'] = ack if isinstance(ack, int) else 0
             with self.server.state_lock:
                 self.server.receive_state(value)
                 if isinstance(ack, int):

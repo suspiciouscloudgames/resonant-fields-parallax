@@ -6,14 +6,15 @@
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');
   const key=new URLSearchParams(location.search).get('key')||'',client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
   let serverId=null;
-  let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,selected=-1,down=null,pending=null,lastRound=null,lastRevision=-1,lastInteraction=0,videoCanvasKey=null;
+  let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,pending=null,lastRound=null,lastInteraction=0,videoCanvasKey=null;
   const video=document.getElementById('phone-video');DeviceScreen.setVideo(video);
   const videoControls=VideoControls.create(async(position,round)=>{
     const r=await fetch('/api/video/seek?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({position,round}),signal:AbortSignal.timeout(2500)});
     if(!r.ok)throw Error('Seek rejected');return (await r.json()).videoSeek;
   });
   function connected(){return !!snapshot?.connected&&performance.now()-lastGood<3000;}
-  function game(){return snapshot?.game?.round===current.round?snapshot.game:null;}
+  function authoritative(){return snapshot?.game?.round===current.round?snapshot.game:null;}
+  function game(){return pending?.round===current.round&&pending.view?pending.view:authoritative();}
   function playable(){return !messages.open&&connected()&&current.mode==='game'&&!current.paused&&game()?.stage==='play'&&game()?.phase==='idle'&&!pending;}
   async function poll(){
     const sent=performance.now();
@@ -23,34 +24,22 @@
       serverId=data.serverId||serverId;
       if(snapshot?.phoneState?.sceneInstance===data.phoneState?.sceneInstance&&snapshot.phoneState.ui.revision>data.phoneState.ui.revision)data.phoneState=snapshot.phoneState;received=performance.now();snapshot=data;DeviceScreen.setVideoSeek(data.videoSeek||null);lastGood=received;
       snapshot.elapsedAtReceive=data.elapsed+(!data.paused&&data.started?Math.max(0,data.serverTime-data.observedAt)+(received-sent)/2:0);
-    }catch{}finally{setTimeout(poll,100);}
+    }catch{}finally{setTimeout(poll,40);}
   }
   async function move(from,to){
-    if(!playable()||!BlitzGame.adjacent(from,to))return;
-    const board=game(),round=current.round;pending={revision:board.revision,since:performance.now()};selected=-1;lastInteraction=performance.now();
+    if(!playable()||!BlitzGame.adjacent(from,to))return false;
+    const board=authoritative(),round=current.round,now=performance.now();
+    const action={revision:board.revision,since:now,round,ack:null,elapsed:current.elapsed};
+    if(board.simulation){action.engine=BlitzGame.fromSnapshot(board);action.engine.swap(from,to,current.elapsed);action.view={...board,...action.engine.snapshot(),elapsed:current.elapsed};}
+    pending=action;lastInteraction=now;
     const body=JSON.stringify({round,revision:board.revision,from,to,requestId:client+':'+(++serial)});
     try{
       const send=()=>fetch('/api/game/input?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body,signal:AbortSignal.timeout(2000)});
-      let r;try{r=await send();}catch{r=await send();}if(!r.ok)pending=null;
-    }catch{pending=null;}
+      let r;try{r=await send();}catch{r=await send();}if(!r.ok){if(pending===action)pending=null;return false;}
+      action.ack=(await r.json()).id;return true;
+    }catch{if(pending===action)pending=null;return false;}
   }
-  function cellAt(event){const rect=canvas.getBoundingClientRect();return BlitzView.hit(event.clientX-rect.left,event.clientY-rect.top,rect.width,rect.height);}
-  canvas.style.touchAction='none';
-  canvas.addEventListener('pointerdown',e=>{
-    BlitzAudio.unlock();if(!playable())return;const cell=cellAt(e);if(cell<0)return;
-    e.preventDefault();canvas.setPointerCapture(e.pointerId);down={cell,x:e.clientX,y:e.clientY,id:e.pointerId,selected};lastInteraction=performance.now();
-    if(selected<0)selected=cell;
-  });
-  canvas.addEventListener('pointerup',e=>{
-    if(!down||down.id!==e.pointerId)return;const start=down;down=null;if(!playable())return;
-    const dx=e.clientX-start.x,dy=e.clientY-start.y,rect=canvas.getBoundingClientRect(),threshold=BlitzView.geometry(rect.width,rect.height).scale*56*.24;
-    if(Math.max(Math.abs(dx),Math.abs(dy))>threshold){
-      const to=start.cell+(Math.abs(dx)>Math.abs(dy)?(dx>0?1:-1):(dy>0?8:-8));if(BlitzGame.adjacent(start.cell,to))move(start.cell,to);else selected=-1;
-    }else if(start.selected>=0&&start.selected!==start.cell&&BlitzGame.adjacent(start.selected,start.cell))move(start.selected,start.cell);
-    else selected=start.selected===start.cell?-1:start.cell;
-  });
-  canvas.addEventListener('pointercancel',()=>{down=null;selected=-1;});
-  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  const input=BlitzInput.create(canvas,{canPlay:playable,move,interact(){BlitzAudio.unlock();lastInteraction=performance.now();}});
   function frame(){
     const now=performance.now(),live=connected();
     if(live&&snapshot.started)current=ExhibitionPlayback.project(snapshot,Math.max(0,snapshot.serverTime-snapshot.observedAt)+now-received);
@@ -60,15 +49,23 @@
     messages.update(snapshot?.phoneState,current,wall);
     video.hidden=current.mode!=='youtube'||messages.open;
     videoControls.update(messages.open?{...current,mode:'messages'}:current);
-    if(messages.open){selected=-1;down=null;}
-    const board=game();
-    if(lastRound!==current.round||current.mode!=='game'){selected=-1;pending=null;down=null;lastInteraction=now;lastRound=current.round;}
-    if(board&&lastRevision!==board.revision){selected=-1;if(pending&&pending.revision!==board.revision)pending=null;lastRevision=board.revision;}
-    if(pending&&now-pending.since>1200)pending=null;
-    button.hidden=!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(board);BlitzAudio.update({...current,paused:current.paused||messages.open||board?.stage==='entry'},board);
+    if(lastRound!==current.round||current.mode!=='game'){pending=null;lastInteraction=now;lastRound=current.round;}
+    const host=authoritative();
+    if(pending){
+      if(!live||current.paused||host?.stage!=='play')pending=null;
+      else{
+        if(pending.engine){const t=pending.elapsed+now-pending.since;pending.view={...host,...pending.engine.advance(t),elapsed:t};}
+        const acknowledged=pending.ack!==null&&snapshot.inputAck>=pending.ack;
+        if(acknowledged&&(host.revision<=pending.revision||host.phase==='idle'&&(!pending.view||pending.view.phase==='idle')))pending=null;
+        else if(!acknowledged&&now-pending.since>3000)pending=null;
+      }
+    }
+    const board=game(),renderView=pending?.view?{...current,elapsed:pending.view.elapsed}:current;
+    input.update(board,live&&!messages.open&&!current.paused&&current.mode==='game');
+    button.hidden=!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(board);BlitzAudio.update({...renderView,paused:current.paused||messages.open||board?.stage==='entry'},board);
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     const stillVideoUI=current.mode==='youtube'&&!messages.open,paintKey=stillVideoUI?[current.instance,w,h].join(':'):null;
-    if(!stillVideoUI||videoCanvasKey!==paintKey)DeviceScreen.render(canvas,current,wall,{selected,notificationsInDOM:true,seekControl:true,nativeVideo:true,hint:playable()&&now-lastInteraction>6000});
+    if(!stillVideoUI||videoCanvasKey!==paintKey)DeviceScreen.render(canvas,renderView,wall,{...input.visual,notificationsInDOM:true,seekControl:true,nativeVideo:true,hint:playable()&&now-lastInteraction>6000});
     videoCanvasKey=paintKey;canvas.dataset.mode=messages.state.mode;
     canvas.setAttribute('aria-label',current.mode==='clock'?'모바일 시계 화면':current.mode==='youtube'?'Gaza Child Calls Himself Man of the House · Shorts':'Bejeweled Blitz · 보석을 밀거나 두 개를 눌러 교환');
     requestAnimationFrame(frame);
@@ -81,6 +78,6 @@
   document.getElementById('close-operator').onclick=()=>document.getElementById('operator').hidden=true;
   addEventListener('keydown',async e=>{if(e.key.toLowerCase()!=='h')return;const panel=document.getElementById('operator');panel.hidden=!panel.hidden;
     if(!panel.hidden){try{const info=await(await fetch('/api/info?key='+encodeURIComponent(key))).json();const a=document.getElementById('phone-link');a.textContent=info.phoneUrl;a.href=info.phoneUrl;}catch{}}});
-  window.PhoneView={get serverId(){return serverId;},get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return selected;},get pending(){return !!pending;}};
+  window.PhoneView={get serverId(){return serverId;},get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return input.selected;},get pending(){return !!pending;}};
   poll();requestAnimationFrame(frame);
 })();

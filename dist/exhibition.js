@@ -14,10 +14,11 @@
     },
   });
   DeviceScreen.setVideo(document.getElementById('source-video'));
+  SceneAudio.unlock();
   const token=new URLSearchParams(location.search).get('run')||'';
   let lastPublish=0,publishing=false,lastDraw=-Infinity;
   async function publish(force=false){
-    const now=Date.now();if(publishing||(!force&&now-lastPublish<100))return;
+    const now=Date.now();if(publishing||(!force&&now-lastPublish<40))return;
     lastPublish=now;publishing=true;
     try{const response=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json','X-Exhibition-Token':token},
       body:JSON.stringify({...playback.status,cues:playback.cues,observedAt:now,game:playback.status.current.id==='game'?session?.state:null,inputAck})});
@@ -33,7 +34,7 @@
   window.Installation={
     sizes,engine:SceneGame,playback,pxPerMM:96/25.4,placementReady:false,error:null,
     // Both display windows request frames; compose the shared pixel scene once.
-    advance(now){if(now-lastDraw>=1000/30-1){lastDraw=now;playback.advance(now);}publish();},publish,
+    advance(now){if(now-lastDraw>=1000/30-1){lastDraw=now;playback.advance(now);SceneAudio.update(playback.status.current,playback.status.paused||!playback.started);}publish();},publish,
     rect(id){const [w,h]=sizes[id];return {...regions[id],w:w*240/500,h:h*240/500};},
     paintCaption(canvas,id){
       const cue=playback.status.current;

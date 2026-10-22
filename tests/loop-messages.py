@@ -15,6 +15,7 @@ try:
  def jump(t):
   cdp.evaluate(hub,'(()=>{const p=Installation.playback,d='+str(t)+'-p.status.elapsed;p.pause(false,0);p.advance(d);p.pause(true,d)})()');cdp.evaluate(hub,'Installation.publish(true)');L.wait_for(lambda:abs(get()['elapsed']-t)<1)
   L.wait_for(lambda:cdp.evaluate(p,'window.PhoneView?.state.instance')==get()['current']['instance'])
+  L.wait_for(lambda:cdp.evaluate(p,'!!PhoneView.state.sceneLock')==bool(get()['current']['phone'].get('sceneLock')))
  def tap(selector):
   box=cdp.evaluate(p,'(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()')
   for kind in ['mousePressed','mouseReleased']:cdp.call('Input.dispatchMouseEvent',{'type':kind,'button':'left','clickCount':1,**box},p)
@@ -49,7 +50,7 @@ try:
      if remaining<phase['duration']:break
      remaining-=phase['duration']
     assert phase['state']==allowed,(cue['id'],at,phase['state'])
- starts=[0,50000,165000,265000,460000,690000];lengths=[50000,115000,100000,195000,230000,285000];ids=['smoking','rain','youtube','police','game','dog']
+ starts=[0,50000,165000,265000,460000,650000];lengths=[50000,115000,100000,195000,190000,285000];ids=['smoking','rain','youtube','police','game','dog']
  for i,(start,duration,name) in enumerate(zip(starts,lengths,ids)):
   jump(start);wait_messages(False)
   assert get()['current']['phone']['mode']=='clock' and get()['current']['phone']['sceneLock']
@@ -87,11 +88,12 @@ try:
   preview=cdp.evaluate(p,"(()=>{const e=document.querySelector('.pm-lock .pm-preview'),s=getComputedStyle(e);return {height:e.clientHeight,line:parseFloat(s.lineHeight),full:e.textContent}})()")
   assert preview['height']<=preview['line']*2+1 and preview['full']==server.scene_messages[name][-1]['text']
   if i==4:
-   held=get()['game']['elapsed'];assert held==18200 and get()['current']['phone']['reading']
+   before=get()['game']['elapsed'];assert before>18200 and not get()['current']['phone']['paused']
    tap('.pm-banner:not(.pm-lock)');wait_messages(True)
-   jump(start+59999);assert get()['game']['elapsed']==held and get()['phoneState']['ui']['open']
-   jump(start+60000);wait_messages(False);assert not get()['current']['phone']['reading']
-   jump(start+61000);assert get()['game']['elapsed']==held+1000
+   jump(start+59999);assert get()['game']['elapsed']==58199 and get()['phoneState']['ui']['open']
+   jump(start+60000);wait_messages(True);assert not get()['current']['phone']['paused']
+   jump(start+61000);assert get()['game']['elapsed']==59200
+   tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
   jump(start+duration-1200)
   assert get()['phoneState']['total']==(30 if i==5 else 9+4*i)
   if i<5:
@@ -110,17 +112,17 @@ try:
  tap('[data-conversation="neighbor"]');L.wait_for(lambda:cdp.evaluate(p,"PhoneView.messages.conversationId==='neighbor'"))
  assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in server.scene_messages['dog']]
  shot('loop-neighbor-thread');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
- # The final round ends at 688900; after stowing, the dog scene starts at 690000.
- jump(975000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==975000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
- jump(976800);tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
+ # The final round ends at 648900; after stowing, the dog scene starts at 650000.
+ jump(935000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==935000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
+ jump(936800);tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
  # Real power gems in every round: the host extends the scene until settlement finishes.
  cdp.evaluate(hub,"(()=>{const original=BlitzGame.create;BlitzGame.create=seed=>{const board=Array.from({length:64},(_,i)=>((i/8|0)*2+i%8)%7);board[27]=24;return original(seed,board)}})()")
- for start,duration in zip(starts[:4],lengths[:4]):jump(975000+start+server.scene_messages[ids[starts.index(start)]] [-1]['at'])
- jump(975000+460000+115000);assert get()['game']['roundNumber']==2
- settlement=cdp.evaluate(hub,'BlitzSession.create(Installation.playback.status.current.instance).advance(1000000).completeAt');game_end=975000+460000+1800+40000+settlement+1100
- jump(975000+690000);assert get()['current']['id']=='game';assert get()['current']['phone']['mode']=='game'
+ for start,duration in zip(starts[:4],lengths[:4]):jump(935000+start+server.scene_messages[ids[starts.index(start)]] [-1]['at'])
+ jump(935000+460000+115000);assert get()['game']['roundNumber']==2
+ settlement=cdp.evaluate(hub,'BlitzSession.create(Installation.playback.status.current.instance).advance(1000000).completeAt');game_end=935000+460000+1800+settlement+1100
+ jump(935000+650000);assert get()['current']['id']=='game';assert get()['current']['phone']['mode']=='game'
  jump(game_end-1100);s=get();assert s['game']['complete'];assert len(s['game']['roundResults'])==3;assert s['current']['phone']['mode']=='clock';assert all(r['score']>0 for r in s['game']['roundResults'])
- jump(game_end);assert get()['current']['id']=='dog';jump(game_end+150000);jump(game_end+285000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+285000-975000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
+ jump(game_end);assert get()['current']['id']=='dog';jump(game_end+150000);jump(game_end+285000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+285000-935000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
  # Phone reload retains history; late subscribers replay exactly the same durable events.
  cdp.call('Page.reload',{},p);L.wait_for(lambda:cdp.evaluate(p,'window.PhoneView?.messages.items.length')==5)
  events=[];cursor=0
@@ -138,7 +140,7 @@ try:
  plate=cdp.evaluate(hub,"SceneGame.background.toDataURL().split(',')[1]");assert base64.b64decode(plate)==(ROOT/'output/mobile-baseline/background.png').read_bytes()
  assert cdp.evaluate(hub,'DeviceScreen.pixelHeight>DeviceScreen.pixelWidth')
  saved_cursor=get()['eventCursor']
- print('PASS: two complete real host loops (975000ms / dynamic length with power settlements), 50 actual-time SMS events, two separate conversations, daughter scenes 1–5 / unknown sender scene 6, selected-thread replies, five exchanged presets after each loop, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
+ print('PASS: two complete real host loops (935000ms / dynamic length with power settlements), 50 actual-time SMS events, two separate conversations, daughter scenes 1–5 / unknown sender scene 6, selected-thread replies, five exchanged presets after each loop, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
 finally:
  if cdp:
   try:cdp.call('Browser.close')

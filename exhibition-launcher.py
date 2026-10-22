@@ -192,7 +192,7 @@ def connect_browser(browser, profile, url, extra_args=()):
         browser, "--user-data-dir=" + str(profile),
         "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0",
         "--no-first-run", "--no-default-browser-check",
-        "--disable-popup-blocking", "--disable-background-timer-throttling",
+        "--disable-popup-blocking", "--disable-background-timer-throttling", "--autoplay-policy=no-user-gesture-required",
         "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
         "--disable-features=msEdgeSidebarV2", "--app=" + url,
     ] + list(extra_args)

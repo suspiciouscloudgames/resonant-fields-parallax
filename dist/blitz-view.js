@@ -48,26 +48,31 @@ window.BlitzView=(()=>{
     else c.fillRect(0,64,448,448);
     if(game?.board?.length===64){
       const p=clamp((elapsed-game.phaseStart)/Math.max(1,game.phaseEnd-game.phaseStart)),e=ease(p),pair=game.swap||[];
+      const drag=options.drag,dragging=game.phase==='idle'&&drag&&BlitzGame.adjacent(drag.from,drag.to);
       c.save();c.beginPath();c.rect(0,64,448,448);c.clip();
       if(game.phase==='fall')for(const f of game.falls)jewel(c,f.gem,f.col*56,64+(f.from+(f.to-f.from)*e)*56,1,1,elapsed);
       else for(let i=0;i<64;i++){
+        if(dragging&&i===drag.from)continue;
         let x=i%8*56,y=64+(i/8|0)*56,gem=game.board[i],alpha=1,size=1;
         const tr=options.transition;
         if(tr){const delay=(i%8)*.035+(7-(i/8|0))*.012,q=clamp((tr.progress-delay)/.65);
           if(tr.kind==='out')y+=q*q*560;else y-=(1-q)*(1-q)*560;
         }
         if((game.phase==='swap'||game.phase==='revert')&&pair.includes(i)){
-          const other=pair[0]===i?pair[1]:pair[0];gem=game.previous[i];x+=(other%8-i%8)*56*e;y+=((other/8|0)-(i/8|0))*56*e;
+          const other=pair[0]===i?pair[1]:pair[0],fraction=game.phase==='swap'&&drag&&pair.includes(drag.from)&&pair.includes(drag.to)?Math.max(e,drag.progress):e;
+          gem=game.previous[i];x+=(other%8-i%8)*56*fraction;y+=((other/8|0)-(i/8|0))*56*fraction;
         }
+        if(dragging&&i===drag.to){x+=(drag.from%8-i%8)*56*drag.progress;y+=((drag.from/8|0)-(i/8|0))*56*drag.progress;}
         if(game.phase==='clear'&&game.removed.includes(i)){alpha=1-p;size=1+.25*p;}
         jewel(c,gem,x,y,alpha,size,elapsed);
       }
+      if(dragging)jewel(c,game.board[drag.from],(drag.from%8+(drag.to%8-drag.from%8)*drag.progress)*56,64+((drag.from/8|0)+((drag.to/8|0)-(drag.from/8|0))*drag.progress)*56,1,1,elapsed);
       if(game.phase==='clear')for(const i of game.removed){
         const x=i%8*56+28,y=64+(i/8|0)*56+28;c.fillStyle=`rgba(255,240,188,${1-p})`;
         for(let k=0;k<6;k++){const a=k*Math.PI/3,r=8+p*31;c.fillRect(x+Math.cos(a)*r-2,y+Math.sin(a)*r-2,4,4);}
       }
       if(game.phase==='clear')for(const fx of game.effects||[])power(c,fx,p,elapsed);
-      const select=options.selected??-1;
+      const select=dragging&&drag.progress>0?-1:options.selected??-1;
       if(select>=0){c.strokeStyle='#fff9ce';c.lineWidth=3;c.shadowColor='#ffe172';c.shadowBlur=7;c.strokeRect(select%8*56+3,64+(select/8|0)*56+3,50,50);c.shadowBlur=0;}
       // Show a legal move after an idle pause without activating the source hint button.
       if(options.hint&&game.phase==='idle')for(const i of BlitzGame.moves(game.board)[0]||[]){c.strokeStyle=`rgba(255,239,176,${.35+Math.sin(elapsed/240)*.25})`;c.lineWidth=2;c.strokeRect(i%8*56+5,64+(i/8|0)*56+5,46,46);}

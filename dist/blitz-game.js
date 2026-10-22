@@ -24,7 +24,7 @@ window.BlitzGame=(()=>{
     }
     return result;
   }
-  function create(seed=1,initial){
+  function create(seed=1,initial,checkpoint=null){
     let random=seed>>>0||1,board=[],score=0,multiplier=1,total=0,revision=0,eventId=0,phase='idle',start=0,end=0,previous=[],removed=[],falls=[],swapPair=null,combo=0,creations=[],lastMatch=-5000,event=null,effects=[],ending=false,endedAt=null;
     const rand=n=>{random^=random<<13;random^=random>>>17;random^=random<<5;return (random>>>0)%n;};
     function fresh(){
@@ -36,6 +36,11 @@ window.BlitzGame=(()=>{
       throw Error('Unable to create a playable board');
     }
     board=initial?initial.slice():fresh();
+    if(checkpoint){
+      if(checkpoint.phase!=='idle'||!checkpoint.simulation)throw Error('Prediction requires a settled host board');
+      ({random,total,lastMatch,eventId}=checkpoint.simulation);score=checkpoint.score;multiplier=checkpoint.multiplier;revision=checkpoint.revision;
+      start=end=checkpoint.phaseStart;event=checkpoint.event?{...checkpoint.event}:null;
+    }
     function emit(name,extra={}){event={id:++eventId,type:name,...extra};}
     function setPhase(name,time,duration){phase=name;start=time;end=time+duration;revision++;}
     function clear(time,matched,forced=[]){
@@ -112,9 +117,9 @@ window.BlitzGame=(()=>{
       advance(time);if(time>=60000||phase!=='idle'||!adjacent(a,b))return false;
       previous=board.slice();[board[a],board[b]]=[board[b],board[a]];swapPair=[a,b];combo=1;emit('swap');setPhase('swap',time,140);return true;
     }
-    function snapshot(){return {ending,endedAt,effects:effects.map(e=>({...e,targets:e.targets.slice()})),board:board.slice(),score,multiplier,revision,phase,phaseStart:start,phaseEnd:end,previous:previous.slice(),removed:removed.slice(),falls:falls.map(f=>({...f})),swap:swapPair?.slice()||null,event:event?{...event}:null};}
+    function snapshot(){return {simulation:{random,total,lastMatch,eventId},ending,endedAt,effects:effects.map(e=>({...e,targets:e.targets.slice()})),board:board.slice(),score,multiplier,revision,phase,phaseStart:start,phaseEnd:end,previous:previous.slice(),removed:removed.slice(),falls:falls.map(f=>({...f})),swap:swapPair?.slice()||null,event:event?{...event}:null};}
     return {advance,swap,snapshot,legalMoves:()=>moves(board)};
   }
   function seed(text){let h=2166136261;for(const char of String(text)){h^=char.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
-  return {create,groups,moves,adjacent,type,kind,seed};
+  return {create,fromSnapshot:s=>create(1,s.board,s),groups,moves,adjacent,type,kind,seed};
 })();

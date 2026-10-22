@@ -106,7 +106,7 @@ def run(screen_info, screenshot=False):
         })()""")
         assert all(p["actual"] == p["expected"] and abs(p["elapsed"] - p["want"]) < .01 for p in phases), phases
         print("Verified all", len(phases), "action/transition phases", flush=True)
-        starts = [0,50000,165000,265000,460000,690000]
+        starts = [0,50000,165000,265000,460000,650000]
         for index in range(6):
             t = starts[index] + 1000
             cdp.evaluate(hub, "Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)" % (t, t))
@@ -146,7 +146,7 @@ def run(screen_info, screenshot=False):
         launcher.wait_for(lambda: cdp.evaluate(phone_session, '!!window.PhoneView?.connected'))
         assert cdp.evaluate(phone_session, 'window.opener===null'), 'Phone must sync independently over HTTP'
         cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},phone_session)
-        checks=[(10000,'clock'),(51000,'clock'),(166000,'clock'),(180000,'youtube'),(264500,'clock'),(280000,'clock'),(461000,'clock'),(475000,'game'),(689000,'clock'),(700000,'clock'),(975000,'clock')]
+        checks=[(10000,'clock'),(51000,'clock'),(166000,'clock'),(180000,'youtube'),(264500,'clock'),(280000,'clock'),(461000,'clock'),(475000,'game'),(649000,'clock'),(700000,'clock'),(935000,'clock')]
         for t,mode in checks:
             cdp.evaluate(hub, 'Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)' % (t,t))
             def synced():

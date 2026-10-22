@@ -5,11 +5,11 @@ const frames=[],engine={
   renderExhibition(...args){frames.push(args);},
 };
 const player=scope.window.ExhibitionPlayback.create(engine);
-assert.equal(player.cycleMilliseconds,975000);
+assert.equal(player.cycleMilliseconds,935000);
 assert.equal(player.started,false);player.advance(123);assert.equal(frames.length,0);
-const expected=[['smoking',50000,'clock'],['rain',115000,'clock'],['youtube',100000,'youtube'],['police',195000,'clock'],['game',230000,'game'],['dog',285000,'clock']];
+const expected=[['smoking',50000,'clock'],['rain',115000,'clock'],['youtube',100000,'youtube'],['police',195000,'clock'],['game',190000,'game'],['dog',285000,'clock']];
 for(let cycle=0;cycle<3;cycle++){
-  let start=cycle*975000;
+  let start=cycle*935000;
   for(let i=0;i<6;i++){
     const [id,duration,mode]=expected[i];
     for(const offset of [0,1799,1800,4000,duration-1]){
@@ -24,5 +24,7 @@ player.start(1000);player.advance(5000);assert.equal(player.status.elapsed,4000)
 player.advance(5000);player.advance(4000);assert.equal(player.status.elapsed,4000);
 player.pause(true,5000);player.advance(10000);assert.equal(player.status.elapsed,4000);
 player.pause(false,10000);player.advance(14000);assert.equal(player.status.elapsed,8000);
-player.advance(975001000);assert.equal(player.status.current.id,'dog');
-console.log('PASS: natural-speed 16m15s nominal loops, all scene boundaries, captions, phone modes, shared clock, pause, long stalls.');
+player.advance(935001000);assert.equal(player.status.current.id,'dog');
+player.start(0);
+for(const offset of [19999,20000,24000,59999,60000]){player.advance(460000+offset);assert.equal(player.status.current.gameTime,offset-1800);assert.equal(player.status.current.phone.paused,false);}
+console.log('PASS: natural-speed 15m35s nominal loops, all scene boundaries, captions, phone modes, shared clock, pause, long stalls.');
