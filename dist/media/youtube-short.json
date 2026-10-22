@@ -1,0 +1,24 @@
+{
+  "source": "https://www.youtube.com/shorts/6vBol7v0lvo",
+  "videoId": "6vBol7v0lvo",
+  "title": "Gaza Child Calls Himself “Man of the House”",
+  "channel": "AJ+",
+  "duration": 95.23,
+  "width": 480,
+  "height": 854,
+  "edits": {
+    "stationLogoRemoved": true,
+    "region": {
+      "x": 401,
+      "y": 86,
+      "width": 49,
+      "height": 47
+    },
+    "colorFilter": {
+      "saturation": 0.88,
+      "brightness": 0,
+      "contrast": 1
+    },
+    "audio": "original copied without re-encoding"
+  }
+}

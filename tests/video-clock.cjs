@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const s={window:{},document:{createElement:()=>({})}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../dist/device-screen.js'),'utf8'),s);const d=s.window.DeviceScreen;
+const video={duration:95.232,readyState:2,currentTime:0,paused:true,seeking:false,play(){this.paused=false;return Promise.resolve()},pause(){this.paused=true;}};
+d.setVideo(video);d.setVideoRound('a:2');d.update({mode:'youtube',elapsed:10000});assert.equal(video.currentTime,10);
+d.setVideoSeek({round:'a:2',offset:45,revision:2});d.update({mode:'youtube',elapsed:10000});assert.equal(video.currentTime,55);
+d.setVideoSeek({round:'a:2',offset:2,revision:1});d.setVideoSeek(null);assert.equal(d.videoPosition(),55);
+d.previewVideo(80);d.update({mode:'youtube',elapsed:10000});assert.equal(video.currentTime,80);assert(video.paused);
+d.previewVideo(null);d.update({mode:'youtube',elapsed:11000,paused:true});assert.equal(video.currentTime,56);assert(video.paused);
+d.setVideoRound('b:2');assert.equal(d.videoPosition(),11);d.update({mode:'youtube',elapsed:999000});assert(d.videoPosition()<95.232);assert(video.paused);
+d.update({mode:'clock',elapsed:0});assert(video.paused);
+d.update({mode:'clock',elapsed:0,sleepElapsed:0});d.update({mode:'clock',elapsed:0});assert.equal(d.state.sleepElapsed,undefined);
+console.log('PASS: host/phone timeline offsets, stale revisions, local drag preview, pause, end clamp, scene reset.');

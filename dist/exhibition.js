@@ -2,16 +2,16 @@
 (()=>{
   const sizes={landscape:[165,100],portrait:[100,165]};
   const regions={landscape:{x:48,y:182},portrait:{x:145,y:182}};
-  let game=null,gameRound=null,inputAck=0;
-  function updateGame(cue){
-    if(cue.phone.mode!=='game'){game=null;gameRound=null;DeviceScreen.setGame(null);return;}
-    const round=playback.status.runId+':'+cue.step;
-    if(round!==gameRound){game=BlitzGame.create(BlitzGame.seed(round));gameRound=round;}
-    game.advance(cue.phone.elapsed);DeviceScreen.setGame({...game.snapshot(),round});
-  }
+  let session=null,sessionId=null,inputAck=0,phoneState=null;
   const playback=ExhibitionPlayback.create({
     exhibitionClip:(...args)=>SceneGame.exhibitionClip(...args),
-    renderExhibition(...args){updateGame(args[4]);SceneGame.renderExhibition(...args);},
+    gameSession(id,time){if(id!==sessionId){session=BlitzSession.create(id);sessionId=id;}return session.advance(time);},
+    renderExhibition(...args){
+      const cue=args[4];DeviceScreen.setVideoRound(cue.instance);
+      DeviceScreen.setGame(cue.phone.mode==='game'?session?.state:null);
+      DeviceScreen.setPhoneState(phoneState);
+      SceneGame.renderExhibition(...args);
+    },
   });
   DeviceScreen.setVideo(document.getElementById('source-video'));
   const token=new URLSearchParams(location.search).get('run')||'';
@@ -20,12 +20,12 @@
     const now=Date.now();if(publishing||(!force&&now-lastPublish<100))return;
     lastPublish=now;publishing=true;
     try{const response=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json','X-Exhibition-Token':token},
-      body:JSON.stringify({...playback.status,current:undefined,cues:playback.cues,observedAt:now,game:DeviceScreen.game,inputAck})});
-      if(response.ok){const data=await response.json();for(const input of data.inputs||[]){
+      body:JSON.stringify({...playback.status,cues:playback.cues,observedAt:now,game:playback.status.current.id==='game'?session?.state:null,inputAck})});
+      if(response.ok){const data=await response.json();DeviceScreen.setVideoSeek(data.videoSeek||null);phoneState=data.phoneState;DeviceScreen.setPhoneState(phoneState);for(const input of data.inputs||[]){
         if(input.id<=inputAck)continue;inputAck=input.id;
         const status=playback.status;
-        if(game&&input.round===gameRound&&!status.paused&&status.current.phone.mode==='game'&&input.revision===game.snapshot().revision)
-          game.swap(input.from,input.to,status.current.phone.elapsed);
+        if(session&&input.round===session.state.round&&!status.paused&&status.current.phone.mode==='game'&&input.revision===session.state.revision)
+          session.swap(input.from,input.to,status.current.phaseTime);
       }}
     }
     catch{}finally{publishing=false;}

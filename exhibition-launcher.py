@@ -292,6 +292,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--preview',action='store_true')
     parser.add_argument('--port',type=int,default=8770)
+    parser.add_argument('--event-origin',action='append',default=[])
     parser.add_argument('--start-scene',choices=['smoking','rain','youtube','police','game','dog'])
     args=parser.parse_args()
     server = None
@@ -307,7 +308,7 @@ def main():
         token = uuid.uuid4().hex[:12]
         for port in range(args.port,args.port+10):
             try:
-                server = ExhibitionServer(ROOT,token,port=port)
+                server = ExhibitionServer(ROOT,token,port=port,storage_path=ROOT/'runtime-data/messages.sqlite3',event_origins=args.event_origin)
                 break
             except OSError:
                 if port==args.port+9:raise

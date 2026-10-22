@@ -13,8 +13,31 @@ window.BlitzView=(()=>{
       c.shadowColor='#d7b8ff';c.shadowBlur=11;c.fillStyle='#f4e4ff';c.fillRect(-19,-19,38,38);
       for(let yy=0;yy<4;yy++)for(let xx=0;xx<4;xx++){const t=(xx+yy*3+Math.floor(time/180))%7;if(images.gems.complete&&images.gems.naturalWidth)c.drawImage(images.gems,t*56,0,56,56,-21+xx*10.5,-21+yy*10.5,12,12);}
     }else if(images.gems.complete&&images.gems.naturalWidth)c.drawImage(images.gems,type*56,0,56,56,-28,-28,56,56);
-    if(special===1){c.strokeStyle='#fff3a5';c.lineWidth=2;c.shadowColor='#ff9b1b';c.shadowBlur=8;c.beginPath();c.arc(0,0,23+Math.sin(time/110)*2,0,Math.PI*2);c.stroke();}
-    if(special===2){c.strokeStyle='#fff';c.lineWidth=2;c.shadowColor='#a9eaff';c.shadowBlur=10;c.beginPath();c.moveTo(-22,0);c.lineTo(22,0);c.moveTo(0,-22);c.lineTo(0,22);c.stroke();}
+    if(special===1){
+      c.globalCompositeOperation='screen';
+      for(let k=0;k<9;k++){const a=k*2.399+time/700,r=16+Math.sin(time/90+k)*7;
+        const g=c.createRadialGradient(Math.cos(a)*r,Math.sin(a)*r,0,Math.cos(a)*r,Math.sin(a)*r,14);
+        g.addColorStop(0,'#ffffd9');g.addColorStop(.3,'#ffd13e');g.addColorStop(1,'#ff4c0000');c.fillStyle=g;c.fillRect(-34,-34,68,68);
+      }
+    }
+    if(special===2){c.globalCompositeOperation='screen';c.strokeStyle='#fff';c.lineWidth=2;c.shadowColor='#6ddfff';c.shadowBlur=12;
+      for(let k=0;k<4;k++){const a=k*Math.PI/2+time/1600;c.beginPath();c.moveTo(Math.cos(a)*9,Math.sin(a)*9);c.lineTo(Math.cos(a)*25,Math.sin(a)*25);c.stroke();}
+    }
+    c.restore();
+  }
+  function lightning(c,x,y,tx,ty,time,seed){
+    c.beginPath();c.moveTo(x,y);const dx=tx-x,dy=ty-y,d=Math.hypot(dx,dy)||1;
+    for(let n=1;n<12;n++){const f=n/12,j=Math.sin(n*17.3+seed*5+Math.floor(time/40)*2.7)*11;c.lineTo(x+dx*f-dy/d*j,y+dy*f+dx/d*j);}c.lineTo(tx,ty);
+    c.shadowColor='#8c8fff';c.shadowBlur=16;c.strokeStyle='#a6c9ff';c.lineWidth=7;c.stroke();c.shadowBlur=6;c.strokeStyle='#fff';c.lineWidth=2;c.stroke();
+  }
+  function power(c,fx,p,time){
+    const x=fx.index%8*56+28,y=64+(fx.index/8|0)*56+28;c.save();c.globalCompositeOperation='screen';c.globalAlpha=Math.sin(Math.PI*Math.min(.98,p+.05));
+    if(fx.kind===1){
+      const r=18+100*Math.sqrt(p),g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'#fff');g.addColorStop(.25,'#fff8ac');g.addColorStop(.6,'#ffae26');g.addColorStop(1,'#ff390000');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);
+      c.lineWidth=5*(1-p);c.strokeStyle='#fff4bb';c.beginPath();c.arc(x,y,r*.8,0,Math.PI*2);c.stroke();
+      for(let k=0;k<22;k++){const a=k*2.399,r2=p*(60+k%5*12);c.fillStyle=k%2?'#fff':'#ffb32e';c.fillRect(x+Math.cos(a)*r2,y+Math.sin(a)*r2,5*(1-p)+1,5*(1-p)+1);}
+    }else if(fx.kind===2){lightning(c,x,y,0,y,time,1);lightning(c,x,y,448,y,time,2);lightning(c,x,y,x,64,time,3);lightning(c,x,y,x,512,time,4);}
+    else for(const i of fx.targets)lightning(c,x,y,i%8*56+28,64+(i/8|0)*56+28,time,i);
     c.restore();
   }
   function render(canvas,game,elapsed,options={}){
@@ -29,6 +52,10 @@ window.BlitzView=(()=>{
       if(game.phase==='fall')for(const f of game.falls)jewel(c,f.gem,f.col*56,64+(f.from+(f.to-f.from)*e)*56,1,1,elapsed);
       else for(let i=0;i<64;i++){
         let x=i%8*56,y=64+(i/8|0)*56,gem=game.board[i],alpha=1,size=1;
+        const tr=options.transition;
+        if(tr){const delay=(i%8)*.035+(7-(i/8|0))*.012,q=clamp((tr.progress-delay)/.65);
+          if(tr.kind==='out')y+=q*q*560;else y-=(1-q)*(1-q)*560;
+        }
         if((game.phase==='swap'||game.phase==='revert')&&pair.includes(i)){
           const other=pair[0]===i?pair[1]:pair[0];gem=game.previous[i];x+=(other%8-i%8)*56*e;y+=((other/8|0)-(i/8|0))*56*e;
         }
@@ -39,6 +66,7 @@ window.BlitzView=(()=>{
         const x=i%8*56+28,y=64+(i/8|0)*56+28;c.fillStyle=`rgba(255,240,188,${1-p})`;
         for(let k=0;k<6;k++){const a=k*Math.PI/3,r=8+p*31;c.fillRect(x+Math.cos(a)*r-2,y+Math.sin(a)*r-2,4,4);}
       }
+      if(game.phase==='clear')for(const fx of game.effects||[])power(c,fx,p,elapsed);
       const select=options.selected??-1;
       if(select>=0){c.strokeStyle='#fff9ce';c.lineWidth=3;c.shadowColor='#ffe172';c.shadowBlur=7;c.strokeRect(select%8*56+3,64+(select/8|0)*56+3,50,50);c.shadowBlur=0;}
       // Show a legal move after an idle pause without activating the source hint button.
@@ -46,7 +74,8 @@ window.BlitzView=(()=>{
       c.restore();
     }
     c.textAlign='center';c.textBaseline='middle';c.font='bold 32px Arial,sans-serif';c.fillStyle='#fff';c.shadowColor='#321445';c.shadowBlur=2;
-    c.fillText((game?.score||0).toLocaleString('en-US'),226,29);c.shadowBlur=0;
+    const score=game?.phase==='clear'?Math.round(game.score-(game.event?.points||0)*(1-ease((elapsed-game.phaseStart)/(game.phaseEnd-game.phaseStart)))):game?.score||0;
+    c.fillText(score.toLocaleString('en-US'),226,29);c.shadowBlur=0;
     c.fillStyle='#1e0b33';c.fillRect(396,18,32,23);c.font='bold 16px Arial';c.fillStyle='#eee5ff';c.fillText('x'+(game?.multiplier||1),412,29);
     const seconds=Math.ceil(Math.max(0,60000-elapsed)/1000),bar=c.createLinearGradient(0,521,0,539);bar.addColorStop(0,'#3fddd3');bar.addColorStop(.5,'#16a7a8');bar.addColorStop(1,'#126774');
     c.fillStyle='#16464f';c.fillRect(10,521,432,16);c.fillStyle=bar;c.fillRect(10,521,432*clamp((60000-elapsed)/60000),16);

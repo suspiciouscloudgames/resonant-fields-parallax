@@ -275,6 +275,13 @@ window.SceneCharacter = (() => {
     videoPixels=pixels;return pixels;
   }
   function tablet(c,phase){
+    if(window.DeviceScreen&&window.Installation?.playback){
+      const pixels=DeviceScreen.pixels();
+      // Portrait handset, deliberately at the same coarse pixel density as the actor.
+      rect(c,4,-4,10,18,'#151817');rect(c,4,-4,1,17,'#8c9189');rect(c,5,-3,8,16,'#272c2b');
+      for(let y=0;y<14;y++)for(let x=0;x<7;x++)rect(c,6+x,-2+y,1,1,pixels[Math.floor(y/14*40)*24+Math.floor(x/7*24)]);
+      rect(c,8,12,3,1,'#515653');rect(c,3,8,2,3,GREY);rect(c,14,4,2,3,GREY);return;
+    }
     const video=tabletScreen(phase);
     // A smaller 16 × 12 case. The glass is 11 × 7 actor pixels; the final
     // compositor paints its video at native output density, below body-pixel size.
@@ -296,6 +303,7 @@ window.SceneCharacter = (() => {
     rect(c,3,12,2,2,GREY);rect(c,16,8,2,2,GREY);
   }
   function tabletVideo(c,state,progress,animationTime,density=1,indoorOffsetY=32){
+    if(window.DeviceScreen&&window.Installation?.playback)return;
     const amount=state==='read'||state==='gaming'?1:state==='tablet'?progress:state==='stow'?1-progress:0;
     if(amount<=.04)return;
     const t=Math.floor(animationTime/(1000/12))*(1000/12),video=tabletScreen(Math.floor(t/900));
