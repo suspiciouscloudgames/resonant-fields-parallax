@@ -1,17 +1,21 @@
 /* Shared contents for the character's device and the real Android screen. */
 window.DeviceScreen=(()=>{
-  let state={mode:'clock',elapsed:0,paused:false},video=null,pixelKey='',pixelColors=[],game=null,videoSeek=null,videoRound=null,videoPreview=null,playing=false,phoneState=null;
+  let state={mode:'clock',elapsed:0,paused:false},video=null,pixelKey='',pixelColors=[],game=null,videoSeek=null,videoRound=null,videoPreview=null,playing=false,phoneState=null,positionPending=false;
   const small=document.createElement('canvas');small.width=24;small.height=40;
   function videoDuration(){return Number.isFinite(video?.duration)&&video.duration>0?video.duration:95.23;}
   function videoPosition(view=state){const offset=videoSeek?.round===videoRound?videoSeek.offset:0;return Math.max(0,Math.min(videoDuration()-.05,videoPreview??(view.elapsed/1000+offset)));}
-  function setVideoSeek(value){if(!value)return;if(videoSeek?.round===value.round&&videoSeek.revision>value.revision)return;videoSeek=value;}
+  function setVideoSeek(value){if(!value)return;if(videoSeek?.round===value.round&&videoSeek.revision>=value.revision)return;videoSeek=value;positionPending=true;}
   function unlockVideo(){if(!video)return;video.muted=false;video.play().then(()=>{if(state.mode!=='youtube'||window.PhoneMessages?.project(phoneState,state).open)video.pause();}).catch(()=>{});}
   function update(next){
     state={paused:false,...next};
     if(!video)return;
-    if(state.mode!=='youtube'||window.PhoneMessages?.project(phoneState,state).open){video.pause();return;}
+    if(state.mode!=='youtube'||window.PhoneMessages?.project(phoneState,state).open){video.pause();video.playbackRate=1;return;}
     const target=videoPosition();
-    if(video.readyState>=2&&!video.seeking&&Math.abs(video.currentTime-target)>(state.paused||videoPreview!==null?.001:.25))try{video.currentTime=target;}catch{}
+    const exact=state.paused||videoPreview!==null,drift=target-video.currentTime;
+    // Normal clock jitter is corrected gradually, without flushing the decoder.
+    // Explicit scrubs, scene changes and large discontinuities still seek exactly.
+    if(video.readyState>=2&&!video.seeking&&(positionPending||Math.abs(drift)>(exact?.001:1.2)))try{video.currentTime=target;positionPending=false;}catch{}
+    video.playbackRate=exact||video.seeking||Math.abs(drift)>1.2||Math.abs(drift)<.08?1:1+Math.max(-.06,Math.min(.06,drift*.2));
     if(state.paused||videoPreview!==null||target>=videoDuration()-.06)video.pause();
     else if(video.paused&&!playing){playing=true;video.play().catch(()=>{}).finally(()=>playing=false);}
   }
@@ -32,7 +36,7 @@ window.DeviceScreen=(()=>{
     }else if(mode==='youtube'){
       c.fillStyle='#080808';c.fillRect(0,0,W,H);
       const header=wide?0:48,footer=wide?0:67,areaH=Math.max(1,H-header-footer);
-      if(video?.readyState>=2){const scale=Math.min(W/video.videoWidth,areaH/video.videoHeight),vw=video.videoWidth*scale,vh=video.videoHeight*scale;c.drawImage(video,(W-vw)/2,header+(areaH-vh)/2,vw,vh);}
+      if(!options.nativeVideo&&video?.readyState>=2){const scale=Math.min(W/video.videoWidth,areaH/video.videoHeight),vw=video.videoWidth*scale,vh=video.videoHeight*scale;c.drawImage(video,(W-vw)/2,header+(areaH-vh)/2,vw,vh);}
       if(!wide){
         c.fillStyle='#ff2445';c.beginPath();c.roundRect(17,15,22,22,7);c.fill();c.fillStyle='#fff';c.beginPath();c.moveTo(25,20);c.lineTo(25,32);c.lineTo(34,26);c.fill();
         c.font='bold 21px Arial';c.fillText('Shorts',47,15);
@@ -61,5 +65,5 @@ window.DeviceScreen=(()=>{
     if(key!==pixelKey){pixelKey=key;render(small);const a=small.getContext('2d').getImageData(0,0,24,40).data;pixelColors=Array.from({length:960},(_,i)=>`rgb(${a[i*4]},${a[i*4+1]},${a[i*4+2]})`);}
     return pixelColors;
   }
-  return {update,render,pixels,pixelWidth:24,pixelHeight:40,setPhoneState(value){phoneState=value;},setVideoSeek,setVideoRound(value){if(value!==videoRound){videoSeek=null;videoPreview=null;}videoRound=value;},previewVideo(value){videoPreview=value;},videoPosition,unlockVideo,get videoDuration(){return videoDuration();},setGame(value){game=value;},get game(){return game;},setVideo(element){video=element;},get state(){return state;}};
+  return {update,render,pixels,pixelWidth:24,pixelHeight:40,setPhoneState(value){phoneState=value;},setVideoSeek,setVideoRound(value){if(value!==videoRound){videoSeek=null;videoPreview=null;positionPending=true;}videoRound=value;},previewVideo(value){videoPreview=value;},videoPosition,unlockVideo,get videoDuration(){return videoDuration();},setGame(value){game=value;},get game(){return game;},setVideo(element){video=element;},get state(){return state;}};
 })();

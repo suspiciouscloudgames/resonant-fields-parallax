@@ -10,3 +10,8 @@ d.setVideoRound('b:2');assert.equal(d.videoPosition(),11);d.update({mode:'youtub
 d.update({mode:'clock',elapsed:0});assert(video.paused);
 d.update({mode:'clock',elapsed:0,sleepElapsed:0});d.update({mode:'clock',elapsed:0});assert.equal(d.state.sleepElapsed,undefined);
 console.log('PASS: host/phone timeline offsets, stale revisions, local drag preview, pause, end clamp, scene reset.');
+d.setVideoRound('smooth:2');d.update({mode:'youtube',elapsed:10000});video.currentTime=10;
+d.update({mode:'youtube',elapsed:10400});assert.equal(video.currentTime,10);assert(video.playbackRate>1&&video.playbackRate<=1.06);
+d.setVideoSeek({round:'smooth:2',offset:.2,revision:3});d.update({mode:'youtube',elapsed:10400});assert(Math.abs(video.currentTime-10.6)<.00001);
+video.currentTime=10.5;d.setVideoSeek({round:'smooth:2',offset:.2,revision:3});d.update({mode:'youtube',elapsed:10400});assert.equal(video.currentTime,10.5);
+console.log('PASS: ordinary drift uses bounded speed correction; explicit seeks remain exact and repeated snapshots do not seek again.');

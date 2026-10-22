@@ -5,8 +5,8 @@
   });
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');
   const key=new URLSearchParams(location.search).get('key')||'',client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
-  let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,selected=-1,down=null,pending=null,lastRound=null,lastRevision=-1,lastInteraction=0;
-  DeviceScreen.setVideo(document.getElementById('phone-video'));
+  let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,selected=-1,down=null,pending=null,lastRound=null,lastRevision=-1,lastInteraction=0,videoCanvasKey=null;
+  const video=document.getElementById('phone-video');DeviceScreen.setVideo(video);
   const videoControls=VideoControls.create(async(position,round)=>{
     const r=await fetch('/api/video/seek?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({position,round}),signal:AbortSignal.timeout(2500)});
     if(!r.ok)throw Error('Seek rejected');return (await r.json()).videoSeek;
@@ -54,6 +54,7 @@
     const wall=snapshot?snapshot.serverTime+now-received:Date.now();
     DeviceScreen.setPhoneState(snapshot?.phoneState);DeviceScreen.setVideoRound(current.instance);
     messages.update(snapshot?.phoneState,current,wall);
+    video.hidden=current.mode!=='youtube'||messages.open;
     videoControls.update(messages.open?{...current,mode:'messages'}:current);
     if(messages.open){selected=-1;down=null;}
     const board=game();
@@ -62,7 +63,9 @@
     if(pending&&now-pending.since>1200)pending=null;
     button.hidden=!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(board);BlitzAudio.update({...current,paused:current.paused||messages.open||board?.stage==='entry'},board);
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-    DeviceScreen.render(canvas,current,wall,{selected,notificationsInDOM:true,seekControl:true,hint:playable()&&now-lastInteraction>6000});canvas.dataset.mode=messages.state.mode;
+    const stillVideoUI=current.mode==='youtube'&&!messages.open,paintKey=stillVideoUI?[current.instance,w,h].join(':'):null;
+    if(!stillVideoUI||videoCanvasKey!==paintKey)DeviceScreen.render(canvas,current,wall,{selected,notificationsInDOM:true,seekControl:true,nativeVideo:true,hint:playable()&&now-lastInteraction>6000});
+    videoCanvasKey=paintKey;canvas.dataset.mode=messages.state.mode;
     canvas.setAttribute('aria-label',current.mode==='clock'?'모바일 시계 화면':current.mode==='youtube'?'Gaza Child Calls Himself Man of the House · Shorts':'Bejeweled Blitz · 보석을 밀거나 두 개를 눌러 교환');
     requestAnimationFrame(frame);
   }
