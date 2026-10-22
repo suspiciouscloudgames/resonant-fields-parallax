@@ -495,29 +495,30 @@ window.SceneCharacter = (() => {
       cycleStart:cycle.start,cycleEnd:cycle.end,puffs:cycle.puffs,tap:cycle.tap};
   }
   function drawSmoke(c,pose,time){
-    // Opaque, sparse grey pixels: thin smoke widens and breaks apart as it rises.
-    // Each wisp keeps its emission position even after the hand moves away.
+    // Separate pixel flecks, with air between each emission instead of a line.
+    // Seeded drift belongs to each fleck, so it floats rather than flickering.
     const tick=Math.floor(time/(1000/12))*(1000/12),palette=['#92988e','#a8ada3','#bdc1b7','#d0d3ca'];
-    for(let i=0;i<24;i++){
-      const emitted=Math.floor(tick/170)*170-i*170;if(emitted<0)continue;
-      const age=(tick-emitted)/3700;if(age<0||age>=1)continue;
-      const seed=Math.floor(emitted/170),source=smokePose(emitted);
-      if(age>.55&&unit(211,seed)<(age-.55)*1.6)continue;
-      const drift=Math.sin(age*5+seed*.27)*(.35+age*1.8);
-      const x=source.hand[0]+4+age*3+drift,y=source.hand[1]-1-age*19;
-      rect(c,x,y,1,age<.35?2:1,palette[Math.min(3,Math.floor(age*4))]);
-      if(age>.3&&age<.7&&seed%3===0)rect(c,x+1,y-1,1,1,palette[2]);
+    for(let i=0;i<13;i++){
+      const seed=Math.floor(tick/330)-i;if(seed<0)continue;
+      const emitted=seed*330+unit(211,seed)*100;
+      const age=(tick-emitted)/(2900+unit(223,seed)*650);if(age<=0||age>=1)continue;
+      const source=smokePose(emitted),side=unit(227,seed)*2-1;
+      const drift=side*(1+age*6)+Math.sin(age*4+seed)*age*1.5;
+      const x=source.hand[0]+4+age*3+drift,y=source.hand[1]-2-age*(22+unit(229,seed)*5);
+      const color=palette[Math.min(3,Math.floor(age*4))];
+      rect(c,x,y,age<.6&&seed%3===0?2:1,1,color);
+      if(age>.25&&age<.7&&seed%3===0)rect(c,x+side*3,y+2,1,1,palette[2]);
     }
-    if(pose.exhale!==null){
-      const since=pose.exhale*3300;
-      for(let i=0;i<11;i++){
-        const age=(since-i*120)/2100;if(age<0||age>=1)continue;
-        const spread=age*3,dx=Math.sin(i*1.7+age*3)*spread,dy=Math.cos(i*2.1)*spread*.4;
-        const x=54+age*16+dx,y=195-age*11+dy;
-        const color=palette[Math.min(3,1+Math.floor(age*3))];
-        if(age<.65||i%2===0)rect(c,x,y,age<.45?2:1,1,color);
-        if(age>.18&&age<.7)rect(c,x-1,y-1,1,1,palette[2]);
-      }
+    // Sample past breaths too: the last fragments keep drifting after exhaling.
+    for(let i=0;i<10;i++){
+      const seed=Math.floor(tick/300)-i;if(seed<0)continue;
+      const emitted=seed*300+unit(233,seed)*80,age=(tick-emitted)/2500;
+      if(age<=0||age>=1||smokePose(emitted).exhale===null)continue;
+      const side=unit(239,seed)*2-1,spread=1+age*7;
+      const x=54+age*18+side*spread,y=195-age*14+(unit(241,seed)*2-1)*spread;
+      const color=palette[Math.min(3,1+Math.floor(age*3))];
+      rect(c,x,y,age<.5?2:1,1,color);
+      if(age>.12&&age<.65&&seed%2===0)rect(c,x-3,y+2,1,1,palette[2]);
     }
   }
   function plantPose(state,time,p){
