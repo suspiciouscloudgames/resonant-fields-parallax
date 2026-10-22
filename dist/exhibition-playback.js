@@ -15,7 +15,7 @@ window.ExhibitionPlayback=(()=>{
     return {...cue,index,step,elapsed:within,clipTime:within,clock:time,sceneStart,
       phase:phase.state,phaseTime,phaseRemaining:Math.max(0,phase.duration-phaseTime),
       captionScreen:cue.side==='indoor'?'landscape':'portrait',captionVisible:within<5000,
-      messageAt:cue.id==='game'?95000:cue.duration/2,
+      messageAt:cue.id==='game'?95000:cue.id==='dog'?8000:cue.duration/2,
       phone:{mode,elapsed:mode==='clock'?0:phaseTime,remaining:mode==='game'?Math.max(0,60000-phaseTime):0}};
   }
   // Static nominal sampler remains useful for cue selection and offline tools.

@@ -33,9 +33,10 @@ try:
  assert not any(e['type']=='message.received' for e in get('/api/events')['events'])
  starts=[0,45000,125000,225000,385000,575000];lengths=[45000,80000,100000,160000,190000,145000];ids=['smoking','rain','youtube','police','game','dog']
  for i,(start,duration,name) in enumerate(zip(starts,lengths,ids)):
-  jump(start+duration//2-1);assert get()['phoneState']['total']==5+i
-  before=time.time()*1000;jump(start+duration//2);s=get();assert s['current']['id']==name
-  msg=s['phoneState']['messages'][-1];assert msg['conversationId']==('neighbor' if i==5 else 'daughter');assert msg['sender']==('저장되지 않은 번호' if i==5 else '딸');assert msg['text']==str(i+1)+'씬 테스트';assert before-100<=msg['receivedAt']<=time.time()*1000+100
+  message_at=8000 if i==5 else duration//2
+  jump(start+message_at-1);assert get()['phoneState']['total']==5+i
+  before=time.time()*1000;jump(start+message_at);s=get();assert s['current']['id']==name
+  msg=s['phoneState']['messages'][-1];assert msg['conversationId']==('neighbor' if i==5 else 'daughter');assert msg['sender']==('저장되지 않은 번호' if i==5 else '딸');assert msg['text']==(server.scene_messages['dog'][0]['text'] if i==5 else str(i+1)+'씬 테스트');assert before-100<=msg['receivedAt']<=time.time()*1000+100
   L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.items.length')==i+6)
   base='youtube' if i==2 else 'game' if i==4 else 'clock';assert cdp.evaluate(p,'PhoneView.state.mode')==base
   selector='.pm-banner:not(.pm-lock)' if base!='clock' else '.pm-lock'
@@ -49,8 +50,24 @@ try:
   tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.open&&PhoneView.messages.conversationId===null'));assert cdp.evaluate(p,"document.querySelectorAll('.pm-conversation').length")==2
   if i==5:shot('loop-two-conversations')
   tap('.pm-back');wait_messages(False);assert cdp.evaluate(p,'PhoneView.state.mode')==base
+  if i==5:
+   for n,delivery in enumerate(server.scene_messages['dog'][1:],1):
+    jump(start+delivery['at']-1);assert get()['phoneState']['total']==10+n
+    before=time.time()*1000;jump(start+delivery['at']);received=get()['phoneState']['messages'][-1]
+    assert received['text']==delivery['text'] and before-100<=received['receivedAt']<=time.time()*1000+100
+    L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.items.length')==11+n)
+    if n==2:
+     tap('.pm-lock');wait_messages(True)
+     assert cdp.evaluate(p,"document.querySelector('.pm-thread').scrollTop")==0
+     assert cdp.evaluate(p,"document.querySelector('.pm-thread').scrollHeight>document.querySelector('.pm-thread').clientHeight+100")
+    if n==3:
+     assert cdp.evaluate(p,"document.querySelector('.pm-thread').scrollTop")==0,'Incoming long SMS must not move a reader at the beginning'
+     shot('neighbor-reading');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
+   shot('neighbor-lock')
+   preview=cdp.evaluate(p,"(()=>{const e=document.querySelector('.pm-lock .pm-preview'),s=getComputedStyle(e);return {height:e.clientHeight,line:parseFloat(s.lineHeight),full:e.textContent}})()")
+   assert preview['height']<=preview['line']*2+1 and preview['full']==server.scene_messages['dog'][-1]['text']
   jump(start+duration-1200)
-  assert get()['phoneState']['total']==i+6
+  assert get()['phoneState']['total']==(15 if i==5 else i+6)
  # During scene six, a reply to the daughter must stay in her thread.
  tap('.pm-lock');wait_messages(True);tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'))
  tap('[data-conversation="daughter"]');L.wait_for(lambda:cdp.evaluate(p,"PhoneView.messages.conversationId==='daughter'"))
@@ -59,7 +76,7 @@ try:
  assert get()['phoneState']['messages'][-1]['conversationId']=='daughter'
  tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'))
  tap('[data-conversation="neighbor"]');L.wait_for(lambda:cdp.evaluate(p,"PhoneView.messages.conversationId==='neighbor'"))
- assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==['6씬 테스트']
+ assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in server.scene_messages['dog']]
  shot('loop-neighbor-thread');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));tap('.pm-back');wait_messages(False)
  # Third game ended at 573900, clock during stow; dog begins exactly at 575000.
  jump(720000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==720000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
@@ -71,10 +88,10 @@ try:
  settlement=cdp.evaluate(hub,'BlitzSession.create(Installation.playback.status.current.instance).advance(1000000).completeAt');game_end=720000+385000+1800+settlement+1100
  jump(720000+575000);assert get()['current']['id']=='game';assert get()['current']['phone']['mode']=='game'
  jump(game_end-1100);s=get();assert s['game']['complete'];assert len(s['game']['roundResults'])==3;assert s['current']['phone']['mode']=='clock';assert all(r['score']>0 for r in s['game']['roundResults'])
- jump(game_end);assert get()['current']['id']=='dog';jump(game_end+72500);jump(game_end+145000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+145000-720000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
+ jump(game_end);assert get()['current']['id']=='dog';jump(game_end+116000);jump(game_end+145000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==game_end+145000-720000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
  # Phone reload retains history; late subscribers replay exactly the same durable events.
  cdp.call('Page.reload',{},p);L.wait_for(lambda:cdp.evaluate(p,'window.PhoneView?.messages.items.length')==5)
- events=get('/api/events')['events'];received=[e for e in events if e['type']=='message.received'];assert len(received)==12;assert len({e['id'] for e in events})==len(events)
+ events=get('/api/events')['events'];received=[e for e in events if e['type']=='message.received'];assert len(received)==20;assert len({e['id'] for e in events})==len(events)
  req=urllib.request.Request(origin+'/api/events/stream?key=loop-test&after='+str(received[-1]['id']-1),headers={'Origin':'https://other-installation.test'})
  with urllib.request.urlopen(req,timeout=5) as stream:
   assert stream.headers['Access-Control-Allow-Origin']=='https://other-installation.test'
@@ -85,7 +102,7 @@ try:
  plate=cdp.evaluate(hub,"SceneGame.background.toDataURL().split(',')[1]");assert base64.b64decode(plate)==(ROOT/'output/mobile-baseline/background.png').read_bytes()
  assert cdp.evaluate(hub,'DeviceScreen.pixelHeight>DeviceScreen.pixelWidth')
  saved_cursor=get()['eventCursor']
- print('PASS: two complete real host loops (720000ms / dynamic length with power settlements), 12 actual-time SMS events, two separate conversations, daughter scenes 1–5 / unknown sender scene 6, selected-thread replies, five exchanged presets after each loop, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
+ print('PASS: two complete real host loops (720000ms / dynamic length with power settlements), 20 actual-time SMS events, two separate conversations, daughter scenes 1–5 / unknown sender scene 6, selected-thread replies, five exchanged presets after each loop, lock/video/game cards, Messages + character sync, three final scores, clock at game end, reload persistence, durable SSE replay, unchanged printed plate.',flush=True)
 finally:
  if cdp:
   try:cdp.call('Browser.close')

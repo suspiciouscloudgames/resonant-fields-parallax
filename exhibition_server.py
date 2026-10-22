@@ -34,6 +34,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         self.video_seek = None
         self.video_revision = 0
         self.video_duration = json.loads((Path(root)/"dist/media/youtube-short.json").read_text())["duration"]
+        self.scene_messages = json.loads((Path(root)/'dist/scene-messages.json').read_text(encoding='utf-8'))
         self.state_lock = threading.RLock()
         self.changed = threading.Condition(self.state_lock)
         self.store = ExhibitionStore(storage_path)
@@ -90,8 +91,10 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
             # Scene-owned transitions win over a conversation left open by a visitor.
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
             self.last_base_mode=mode
-        if c['elapsed']>=c['messageAt']:
-            item=self.store.message(str(c['index']+1)+'씬 테스트',True,c,key=c['instance']+':midpoint',now=now)
+        deliveries=self.scene_messages.get(c['id'],[{'id':'midpoint','at':c['messageAt'],'text':str(c['index']+1)+'씬 테스트'}])
+        for delivery in deliveries:
+            if c['elapsed']<delivery['at']:continue
+            item=self.store.message(delivery['text'],True,c,key=c['instance']+':'+delivery['id'],now=now,conversation_id=delivery.get('conversationId'))
             if item:
                 self.ui['revision']+=1
                 if self.ui['open'] and self.ui['conversationId']==item['conversationId']:self.read_conversation(item['conversationId'])

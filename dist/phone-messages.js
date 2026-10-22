@@ -9,7 +9,8 @@ window.PhoneMessages=(()=>{
     const latest=conversations.map(c=>c.latestIncoming).filter(Boolean).sort((a,b)=>b.id-a.id)[0],open=!!(same&&ui.open),conversationId=ui.conversationId??null;
     const through=ui.readThroughByConversation?.[latest?.conversationId]??ui.readThrough??0;
     const banner=!!(same&&(view.mode!=='clock'||open)&&!(open&&conversationId===(latest?.conversationId||'daughter'))&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(through,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
-    return {open,banner,items,latest,conversations,conversationId,conversation:contact(conversationId),threadItems:items.filter(i=>(i.conversationId||'daughter')===conversationId),
+    const unread=items.filter(i=>i.incoming&&!i.preset&&i.id>(ui.readThroughByConversation?.[i.conversationId]??ui.readThrough??0)).reverse();
+    return {open,banner,items,latest,lockItems:unread.length?unread:(latest?[latest]:[]),conversations,conversationId,conversation:contact(conversationId),threadItems:items.filter(i=>(i.conversationId||'daughter')===conversationId),
       mode:open?'messages':view.mode,lock:!open&&view.mode==='clock'&&!!latest,hasMore:data?.hasMoreByConversation?.[conversationId]??!!data?.hasMore,total:data?.total??items.length};
   }
   function create(options={}){
@@ -26,7 +27,8 @@ window.PhoneMessages=(()=>{
       </section>`;
     document.body.append(root);
     const find=s=>root.querySelector(s),banner=find('.pm-banner'),panel=find('.pm-messages'),input=find('.pm-input'),send=find('.pm-send'),items=find('.pm-items'),thread=find('.pm-thread');
-    const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';root.append(lock);
+    const locks=document.createElement('div');locks.className='pm-lock-list';locks.setAttribute('aria-label','받은 문자 미리보기');root.append(locks);
+    const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';locks.append(lock);
     let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
     const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
     function paint(){
@@ -34,13 +36,15 @@ window.PhoneMessages=(()=>{
       if(keyPaint===paintKey)return;paintKey=keyPaint;
       const changedThread=selectedThread!==state.conversationId;
       if(changedThread){selectedThread=state.conversationId;older=[];olderComplete=false;lastItems='';input.value='';send.disabled=true;}
-      banner.hidden=!state.banner;lock.hidden=!state.lock;panel.hidden=!state.open;
+      banner.hidden=!state.banner;locks.hidden=!state.lock;lock.hidden=!state.lock;panel.hidden=!state.open;
       const inThread=!!state.conversationId,baseLabel=view.mode==='game'?'게임':view.mode==='youtube'?'영상':'잠금화면',label=inThread?'메시지':baseLabel;
       find('.pm-back').innerHTML='<span aria-hidden="true">‹</span> '+label;find('.pm-back').setAttribute('aria-label',label+'으로 돌아가기');
       panel.classList.toggle('pm-is-inbox',!inThread);panel.setAttribute('aria-label',inThread?state.conversation.title+'와의 문자메시지':'메시지 목록');
       find('.pm-contact').hidden=!inThread;find('.pm-contact strong').textContent=state.conversation.title;
       find('.pm-inbox').hidden=inThread;thread.hidden=!inThread;find('form').hidden=!inThread;
-      for(const card of [banner,lock]){const name=state.latest?.sender||contact(state.latest?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=state.latest?.text||'';card.querySelector('.pm-banner-heading>span').textContent=state.latest?stamp(state.latest.receivedAt,state.latest.preset):'';card.setAttribute('aria-label',name+' · '+(state.latest?.text||'')+' 문자메시지 열기');}
+      function paintCard(card,item){const name=item?.sender||contact(item?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=item?.text||'';card.querySelector('.pm-banner-heading>span').textContent=item?stamp(item.receivedAt,item.preset):'';card.setAttribute('aria-label',name+' · '+(item?.text||'')+' 문자메시지 열기');}
+      paintCard(banner,state.latest);locks.replaceChildren(lock);
+      state.lockItems.forEach((item,index)=>{const card=index?banner.cloneNode(true):lock;card.className='pm-banner '+(index?'pm-lock-card':'pm-lock');card.hidden=!state.lock;paintCard(card,item);card.onclick=()=>action('open',null,item.conversationId||'daughter');locks.append(card);});
       const list=find('.pm-conversations');list.replaceChildren();
       for(const conversation of [...state.conversations].sort((a,b)=>(b.latest?.receivedAt||0)-(a.latest?.receivedAt||0))){
         const row=document.createElement('button');row.className='pm-conversation';row.dataset.conversation=conversation.id;row.setAttribute('aria-label',conversation.title+' 대화 열기');
@@ -59,13 +63,15 @@ window.PhoneMessages=(()=>{
         previousOpen=state.open;
       }
       const all=[...new Map([...older,...state.threadItems].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=state.conversationId+':'+all.map(i=>i.id).join(',');
-      if(key!==lastItems){lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(item.receivedAt).toISOString();time.textContent=stamp(item.receivedAt,true);row.append(time,bubble);items.append(row);}thread.scrollTop=thread.scrollHeight;}
-      if(opened||changedThread)thread.scrollTop=thread.scrollHeight;
+      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(item.receivedAt).toISOString();time.textContent=stamp(item.receivedAt,true);row.append(time,bubble);items.append(row);}thread.scrollTop=scroll;
+        if(!opened&&!changedThread&&nearEnd&&all.length>previousCount){const firstNew=items.children[previousCount];thread.scrollTop=firstNew.offsetTop-thread.offsetTop-16;}
+      }
+      if(opened||changedThread)thread.scrollTop=all.some(i=>i.text.length>120)?0:thread.scrollHeight;
       find('.pm-empty').hidden=all.length>0;
       find('.pm-clock').textContent=new Date(now).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
     }
     async function action(type,text,conversationId){const instance=view.instance,next=await options.action?.(type,text,conversationId);if(next&&instance===view.instance)data=next;paint();}
-    banner.onclick=lock.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open',null,project(data,view,now).latest?.conversationId||'daughter');};
+    banner.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open',null,project(data,view,now).latest?.conversationId||'daughter');};
     banner.addEventListener('pointerdown',e=>touchY=e.clientY);banner.addEventListener('pointerup',e=>{if(touchY!==null&&e.clientY-touchY< -20){suppressClick=true;action('dismiss');e.preventDefault();}touchY=null;});
     const back=()=>action(project(data,view,now).conversationId?'list':'back');find('.pm-back').onclick=back;
     input.addEventListener('input',()=>send.disabled=!input.value.trim());
