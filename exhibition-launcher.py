@@ -402,7 +402,7 @@ def main():
         print('PHONE: '+server.phone_url,flush=True)
         log.info('Phone connection: %s; browser=%s',server.phone_url,browser)
         process, cdp = connect_browser(
-            browser, profile, origin + "/exhibition.html?run=" + token,kiosk=not args.preview)
+            browser, profile, origin + "/exhibition.html?run=" + token)
         session, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
         print('READY: '+', '.join(outputs),flush=True)
         log.info('READY: %s',', '.join(outputs))
