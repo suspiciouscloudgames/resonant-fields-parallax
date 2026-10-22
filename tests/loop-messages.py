@@ -30,7 +30,7 @@ try:
   wait_messages(False)
  def shot(name):
   out=ROOT/'output/exhibition-validation';out.mkdir(parents=True,exist_ok=True);(out/(name+'.png')).write_bytes(base64.b64decode(cdp.call('Page.captureScreenshot',{'format':'png'},p)['data']))
- cdp.evaluate(hub,'Installation.playback.start(0);Installation.playback.pause(true,0)');jump(1)
+ cdp.evaluate(hub,'Installation.playback.start(0);Installation.playback.pause(true,0)');jump(0)
  presets=get()['phoneState']['messages'];assert len(presets)==5
  assert all(m['preset'] and m['conversationId']=='daughter' for m in presets)
  assert [m['incoming'] for m in presets]==[True,False,True,False,True]
@@ -51,6 +51,9 @@ try:
     assert phase['state']==allowed,(cue['id'],at,phase['state'])
  starts=[0,50000,165000,265000,460000,690000];lengths=[50000,115000,100000,195000,230000,285000];ids=['smoking','rain','youtube','police','game','dog']
  for i,(start,duration,name) in enumerate(zip(starts,lengths,ids)):
+  jump(start);wait_messages(False)
+  assert get()['current']['phone']['mode']=='clock' and get()['current']['phone']['sceneLock']
+  assert cdp.evaluate(p,"document.activeElement!==document.querySelector('.pm-input')&&!PhoneView.messages.lock&&!PhoneView.messages.banner")
   message_at=server.scene_messages[name][0]['at']
   jump(start+message_at-1);assert get()['phoneState']['total']==5+4*i
   before=time.time()*1000;jump(start+message_at);s=get();assert s['current']['id']==name
@@ -91,6 +94,11 @@ try:
    jump(start+61000);assert get()['game']['elapsed']==held+1000
   jump(start+duration-1200)
   assert get()['phoneState']['total']==(30 if i==5 else 9+4*i)
+  if i<5:
+   body={'action':'messages.open','conversationId':'daughter','instance':get()['current']['instance']}
+   request=urllib.request.Request(origin+'/api/phone/action?key=loop-test',data=json.dumps(body).encode(),headers={'Content-Type':'application/json'})
+   urllib.request.urlopen(request).close();wait_messages(True)
+   cdp.evaluate(p,"document.querySelector('.pm-input').focus();document.querySelector('.pm-input').value='unfinished reply'")
   print('Verified scene '+name+': safe reading windows, staged delivery and phone routing',flush=True)
  # During scene six, a reply to the daughter must stay in her thread.
  tap('.pm-lock');wait_messages(True);tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'))
@@ -104,7 +112,7 @@ try:
  shot('loop-neighbor-thread');tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
  # The final round ends at 688900; after stowing, the dog scene starts at 690000.
  jump(975000);assert get()['current']['id']=='smoking';assert get()['lastCycleMilliseconds']==975000;assert get()['phoneState']['total']==5;assert get()['phoneState']['messages']==presets
- tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
+ jump(976800);tap('.pm-lock');wait_messages(True);assert cdp.evaluate(p,"Array.from(document.querySelectorAll('.pm-bubble'),e=>e.textContent)")==[m['text'] for m in presets];tap('.pm-back');L.wait_for(lambda:cdp.evaluate(p,'PhoneView.messages.conversationId===null'));leave_inbox()
  # Real power gems in every round: the host extends the scene until settlement finishes.
  cdp.evaluate(hub,"(()=>{const original=BlitzGame.create;BlitzGame.create=seed=>{const board=Array.from({length:64},(_,i)=>((i/8|0)*2+i%8)%7);board[27]=24;return original(seed,board)}})()")
  for start,duration in zip(starts[:4],lengths[:4]):jump(975000+start+server.scene_messages[ids[starts.index(start)]] [-1]['at'])

@@ -6,12 +6,12 @@ window.PhoneMessages=(()=>{
   function project(data,view,now=Date.now()){
     const items=data?.messages||[],ui=data?.ui||{},same=data?.sceneInstance===view.instance;
     const conversations=(data?.conversations||contacts.map(c=>{const rows=items.filter(i=>(i.conversationId||'daughter')===c.id);return {...c,latest:rows.at(-1),latestIncoming:[...rows].reverse().find(i=>i.incoming),total:rows.length,unread:0};})).filter(c=>c.latest);
-    const latest=conversations.map(c=>c.latestIncoming).filter(Boolean).sort((a,b)=>b.id-a.id)[0],open=!!(same&&ui.open),conversationId=ui.conversationId??null;
+    const latest=conversations.map(c=>c.latestIncoming).filter(Boolean).sort((a,b)=>b.id-a.id)[0],open=!!(same&&ui.open&&!view.sceneLock),conversationId=ui.conversationId??null;
     const through=ui.readThroughByConversation?.[latest?.conversationId]??ui.readThrough??0;
-    const banner=!!(same&&(view.mode!=='clock'||open)&&!(open&&conversationId===(latest?.conversationId||'daughter'))&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(through,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
+    const banner=!!(!view.sceneLock&&same&&(view.mode!=='clock'||open)&&!(open&&conversationId===(latest?.conversationId||'daughter'))&&latest&&latest.sceneInstance===view.instance&&latest.id>Math.max(through,ui.dismissed||0)&&now-latest.receivedAt<6000&&now>=latest.receivedAt);
     const unread=items.filter(i=>i.incoming&&!i.preset&&i.id>(ui.readThroughByConversation?.[i.conversationId]??ui.readThrough??0)).reverse();
     return {open,banner,items,latest,lockItems:unread.length?unread:(latest?[latest]:[]),conversations,conversationId,conversation:contact(conversationId),threadItems:items.filter(i=>(i.conversationId||'daughter')===conversationId),
-      mode:open?'messages':view.mode,lock:!open&&view.mode==='clock'&&!!latest,hasMore:data?.hasMoreByConversation?.[conversationId]??!!data?.hasMore,total:data?.total??items.length};
+      mode:open?'messages':view.mode,lock:!view.sceneLock&&!open&&view.mode==='clock'&&!!latest,hasMore:data?.hasMoreByConversation?.[conversationId]??!!data?.hasMore,total:data?.total??items.length};
   }
   function create(options={}){
     let data=null,view={mode:'clock'},now=Date.now(),older=[],olderComplete=false,paintKey='',historyId=null,selectedThread=null;
@@ -32,7 +32,7 @@ window.PhoneMessages=(()=>{
     let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
     const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
     function paint(){
-      const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,state.banner,state.open,state.conversationId,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');
+      const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,view.sceneLock,state.banner,state.open,state.conversationId,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');
       if(keyPaint===paintKey)return;paintKey=keyPaint;
       const changedThread=selectedThread!==state.conversationId;
       if(changedThread){selectedThread=state.conversationId;older=[];olderComplete=false;lastItems='';input.value='';send.disabled=true;}
@@ -72,7 +72,7 @@ window.PhoneMessages=(()=>{
       find('.pm-empty').hidden=all.length>0;
       find('.pm-clock').textContent=new Date(now).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
     }
-    async function action(type,text,conversationId){const instance=view.instance,next=await options.action?.(type,text,conversationId);if(next&&instance===view.instance)data=next;paint();}
+    async function action(type,text,conversationId){if(view.sceneLock)return;const instance=view.instance,next=await options.action?.(type,text,conversationId);if(next&&instance===view.instance)data=next;paint();}
     banner.onclick=()=>{if(suppressClick){suppressClick=false;return;}action('open',null,project(data,view,now).latest?.conversationId||'daughter');};
     banner.addEventListener('pointerdown',e=>touchY=e.clientY);banner.addEventListener('pointerup',e=>{if(touchY!==null&&e.clientY-touchY< -20){suppressClick=true;action('dismiss');e.preventDefault();}touchY=null;});
     const back=()=>{const state=project(data,view,now);if(state.conversationId)return action('list');if(view.mode!=='clock')return action('back');};find('.pm-back').onclick=back;

@@ -12,9 +12,9 @@ for(let cycle=0;cycle<3;cycle++){
   let start=cycle*975000;
   for(let i=0;i<6;i++){
     const [id,duration,mode]=expected[i];
-    for(const offset of [0,4000,duration-1]){
+    for(const offset of [0,1799,1800,4000,duration-1]){
       const f=player.sample(start+offset);assert.equal(f.id,id);assert.equal(f.clipTime,offset);
-      assert.equal(f.phone.mode,mode);assert.equal(f.captionVisible,offset<5000);
+      assert.equal(f.phone.mode,offset<1800?'clock':mode);assert.equal(f.phone.sceneLock,offset<1800);assert.equal(f.captionVisible,offset<5000);
       assert.equal(f.captionScreen,i%2?'portrait':'landscape');
     }
     assert.equal(player.sample(start+duration).id,expected[(i+1)%6][0]);start+=duration;

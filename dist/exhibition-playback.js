@@ -11,12 +11,13 @@ window.ExhibitionPlayback=(()=>{
   function cueAt(cue,index,step,within,time,sceneStart){
     let phaseTime=within,phase=cue.phases[0];
     for(const p of cue.phases){phase=p;if(phaseTime<p.duration)break;phaseTime-=p.duration;}
-    const mode=phase.state==='gaming'?'game':phase.state==='read'&&cue.id==='youtube'?'youtube':'clock';
+    const sceneLock=within<1800;
+    const mode=sceneLock?'clock':phase.state==='gaming'?'game':phase.state==='read'&&cue.id==='youtube'?'youtube':'clock';
     return {...cue,index,step,elapsed:within,clipTime:within,clock:time,sceneStart,
       phase:phase.state,phaseTime,phaseRemaining:Math.max(0,phase.duration-phaseTime),
       captionScreen:cue.side==='indoor'?'landscape':'portrait',captionVisible:within<5000,
       messageAt:cue.messageAt??20000,
-      phone:{mode,elapsed:mode==='clock'?0:phaseTime,remaining:mode==='game'?Math.max(0,60000-phaseTime):0}};
+      phone:{mode,sceneLock,...(sceneLock?{sleepElapsed:within}:{}),elapsed:mode==='clock'?0:phaseTime,remaining:mode==='game'?Math.max(0,60000-phaseTime):0}};
   }
   // Static nominal sampler remains useful for cue selection and offline tools.
   function sample(cues,time){

@@ -12,3 +12,5 @@ assert.equal(P(d,{mode:'clock',instance:'a'},1001).conversations.length,1);
 threads.messages=threads.messages.filter(m=>m.conversationId==='daughter');
 assert.deepEqual(Array.from(P(threads,{mode:'clock',instance:'six'},2001).conversations,c=>c.id),['daughter']);
 console.log('PASS: an empty unknown-number thread is absent until its first message and disappears after reset.');
+
+d.ui.open=true;const locked=P(d,{mode:'clock',instance:'a',sceneLock:true},1001);assert(!locked.open&&!locked.lock&&!locked.banner);assert.equal(locked.mode,'clock');

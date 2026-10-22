@@ -10,8 +10,8 @@ def request(path,body=None):
  try:
   with urllib.request.urlopen(req,timeout=3) as r:return r.status,json.load(r)
  except urllib.error.HTTPError as e:return e.code,json.load(e)
-def publish(i,cycle=0):
- scene={'id':['smoking','rain','youtube','police','game','dog'][i],'index':i,'cycle':cycle,'instance':'run:'+str(cycle*6+i),'elapsed':server.scene_messages[['smoking','rain','youtube','police','game','dog'][i]][0]['at'],'messageAt':50,'phase':'home','phaseTime':50,'phone':{'mode':'clock','round':'run:'+str(cycle*6+i),'elapsed':0}}
+def publish(i,cycle=0,locked=False):
+ scene={'id':['smoking','rain','youtube','police','game','dog'][i],'index':i,'cycle':cycle,'instance':'run:'+str(cycle*6+i),'elapsed':server.scene_messages[['smoking','rain','youtube','police','game','dog'][i]][0]['at'],'messageAt':50,'phase':'home','phaseTime':50,'phone':{'sceneLock':locked,'mode':'clock','round':'run:'+str(cycle*6+i),'elapsed':0}}
  return request('/api/state',{'started':True,'paused':True,'elapsed':50,'observedAt':time.time()*1000,'runId':'run','cues':[{}]*6,'game':None,'current':scene,'lastCycleMilliseconds':None})
 def action(action,conversation=None,text=None):return request('/api/phone/action?key=conversations-test',{'action':'messages.'+action,'conversationId':conversation,'text':text,'instance':server.last_scene})
 try:
@@ -23,6 +23,9 @@ try:
   assert [c['id'] for c in state['conversations']]==(['daughter','neighbor'] if i==5 else ['daughter'])
   if i==5:assert state['conversations'][1]['total']==1
   assert publish(i)[1]['phoneState']['total']==6+i
+ publish(5,locked=True)
+ assert action('open','neighbor')[0]==409
+ publish(5)
  assert action('select','invalid')[0]==400
  state=action('select','daughter')[1]['phoneState'];assert state['ui']['conversationId']=='daughter'
  assert state['conversations'][0]['unread']==0 and state['conversations'][1]['unread']==1

@@ -88,10 +88,13 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         if c['instance']!=self.last_scene:
             self.last_scene=c['instance'];self.ui.update(open=False,conversationId=None,dismissed=0,revision=self.ui['revision']+1)
             self.store.emit('scene.started',{'scene':self.store.scene(c),'baseMode':mode},key=c['instance']+':scene',now=now)
+            self.store.emit('phone.screen.changed',{'scene':self.store.scene(c),'screen':'clock','action':'scene.changed','conversationId':None},key=c['instance']+':phone-lock',now=now)
         if mode!=self.last_base_mode:
             # Scene-owned transitions win over a conversation left open by a visitor.
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
             self.last_base_mode=mode
+        if c['phone'].get('sceneLock') and self.ui['open']:
+            self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
         if previous.get('instance')==c['instance'] and previous.get('phone',{}).get('reading') and not c['phone'].get('reading'):
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
             self.store.emit('phone.screen.changed',{'scene':self.store.scene(c),'screen':mode,'action':'reading.completed','conversationId':None},key=c['instance']+':reading-completed',now=now)
@@ -305,6 +308,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 phase=self.server.active_phase()
                 if not phase or value.get('instance')!=phase['instance']:return self.reply({'error':'Scene changed'},409)
                 ui=self.server.ui;c=self.server.state['current'];history=self.server.store.messages(limit=1)
+                if c['phone'].get('sceneLock'):return self.reply({'error':'Scene transition'},409)
                 if action in ('messages.open','messages.select'):
                     conversation=value.get('conversationId')
                     if conversation is None and action=='messages.open':
