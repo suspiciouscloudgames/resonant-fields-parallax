@@ -54,10 +54,9 @@ def lifecycle():
             manager.commands.put('stop');manager.step();assert manager.child is None and not manager.enabled
             manager.step();assert manager.child is None
             manager.commands.put('start');eventually(ready);assert manager.child.pid!=first
-            # Stage a release. It must not interrupt a scene or the existing loop.
+            # A verified release switches in the same cycle, without waiting for the loop.
             (root/'releases/v2').mkdir();(root/'releases/v2/exhibition-launcher.py').write_text(FAKE)
-            manager.pending={'version':'v2'};manager.step();assert manager.active['version']=='v1'
-            (manager.data/'cycle').write_text('1');manager.step()
+            manager.pending={'version':'v2'};manager.step()
             assert manager.active['version']=='v2' and (root/'recovery.json').exists()
             eventually(ready);assert not (root/'recovery.json').exists()
             # A bad update exits: automatically roll back to the working version.
@@ -73,7 +72,7 @@ def lifecycle():
             (manager.data/'offline').unlink();manager.next_launch=0;eventually(ready);assert manager.child.pid!=old
             (manager.data/'operator-exit').touch();eventually(lambda:manager.child.poll() is not None)
             manager.step();assert not manager.enabled and manager.child is None
-            print('PASS: start/stop, uninterrupted loop, update activation, failed-update rollback, freeze recovery and operator exit')
+            print('PASS: start/stop, immediate same-cycle update activation, failed-update rollback, freeze recovery and operator exit')
         finally:manager.stop()
 
 def archives_and_pairing():
@@ -153,4 +152,24 @@ def update_download():
         finally:M.request_json=old_json;M.urllib.request.urlopen=old_open
         print('PASS: complete release download/staging and corrupt-download rejection without switching the active installation')
 
-archives_and_pairing();lifecycle();mobile_reload();update_download()
+def legacy_update_handoff():
+    status={'enabled':True,'running':True,'ready':True,'candidate':False,'version':'v1','pending':'v2'}
+    assert L.update_ready(status,'v1')
+    for changes in [{'enabled':False},{'running':False},{'ready':False},{'candidate':True},{'version':'other'},{'pending':None},{'pending':'v1'}]:
+        assert not L.update_ready({**status,**changes},'v1'),changes
+    # Exercise the existing supervisor's child-exit path, used by v0.3.18 launcher.
+    with tempfile.TemporaryDirectory() as directory:
+        root=Path(directory);(root/'releases/v1').mkdir(parents=True);(root/'releases/v1/exhibition-launcher.py').write_text(FAKE)
+        (root/'releases/v2').mkdir();(root/'releases/v2/exhibition-launcher.py').write_text(FAKE)
+        M.write_json(root/'active.json',{'version':'v1'})
+        with socket.socket() as probe:probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
+        manager=M.Manager(root,app_port=port);manager.interpreter=Path(sys.executable)
+        def ready():manager.step();return manager.confirmed
+        try:
+            eventually(ready);manager.pending={'version':'v2'}
+            (manager.data/'stop-request').touch();eventually(lambda:manager.child.poll() is not None)
+            manager.step();eventually(ready);assert manager.active['version']=='v2'
+        finally:manager.stop()
+    print('PASS: legacy supervisor handoff, enabled/healthy/candidate guards, clean child exit activates staged release')
+
+archives_and_pairing();lifecycle();legacy_update_handoff();mobile_reload();update_download()

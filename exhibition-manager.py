@@ -1,4 +1,4 @@
-"""Interactive Windows supervisor. Updates are staged, verified, and applied at loop boundaries."""
+"""Interactive Windows supervisor. Updates are verified and applied immediately after download."""
 import argparse
 import hashlib
 import http.server
@@ -96,7 +96,7 @@ class Manager:
         return {'enabled':self.enabled,'version':self.active['version'],
                 'running':self.child is not None and self.child.poll() is None,
                 'ready':self.confirmed,'pending':self.pending and self.pending['version'],
-                'candidate':self.candidate is not None}
+                'candidate':self.candidate is not None,'updatePolicy':'immediate'}
 
     def launch(self):
         (self.data/'stop-request').unlink(missing_ok=True)
@@ -201,7 +201,7 @@ class Manager:
                     if self.candidate:
                         self.candidate=None;self.previous=None;(self.root/'recovery.json').unlink(missing_ok=True)
                 current=state.get('current')
-                if self.pending and is_loop_boundary(self.previous_scene,current):self.activate();return
+                if self.pending and not self.candidate:self.activate();return
                 self.previous_scene=current
         except Exception:pass
         if now-self.last_live>(20 if self.confirmed else 100):

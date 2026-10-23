@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import urllib.parse
+import urllib.request
 import uuid
 import argparse
 import sys
@@ -358,6 +359,24 @@ class LocalHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+def update_ready(status,version):
+    # Legacy supervisors already expose verified pending releases on localhost.
+    return (status.get('enabled') is True and status.get('running') is True
+            and status.get('ready') is True and not status.get('candidate')
+            and status.get('version')==version and bool(status.get('pending'))
+            and status['pending']!=version)
+
+
+def pending_managed_update():
+    """Allow an existing installed supervisor to switch without waiting for a loop."""
+    try:
+        version=json.loads((ROOT/'version.json').read_text())['version']
+        with urllib.request.urlopen('http://127.0.0.1:8772',timeout=.3) as response:
+            status=json.loads(response.read(8192))
+        return update_ready(status,version)
+    except (OSError,ValueError,KeyError):return False
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--preview',action='store_true')
@@ -406,11 +425,16 @@ def main():
         session, outputs = launch_outputs(cdp, origin, token,preview=args.preview,start_scene=args.start_scene)
         print('READY: '+', '.join(outputs),flush=True)
         log.info('READY: %s',', '.join(outputs))
-        last_heartbeat=time.monotonic();failures=0
+        last_heartbeat=time.monotonic();last_update_check=0;failures=0
         while process.poll() is None:
             try:
                 if (records/'stop-request').exists():
                     log.info('Managed stop requested');exit_code=0;break
+                if args.managed and time.monotonic()-last_update_check>=1:
+                    last_update_check=time.monotonic()
+                    if pending_managed_update():
+                        log.info('Verified update ready; yielding to installed supervisor')
+                        exit_code=0;break
                 if not supervise_outputs(cdp,session,outputs,origin,token,args.preview):
                     exit_code=20;break
                 failures=0
