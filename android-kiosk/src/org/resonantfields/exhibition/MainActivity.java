@@ -53,6 +53,16 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private volatile WebView web;
     private boolean exhibitionStarted;
+    private final Runnable checkKiosk=new Runnable(){
+        @Override public void run(){
+            if(closed||!resumed)return;
+            if(exhibitionStarted&&(!KioskPolicy.locked(MainActivity.this)||KioskPolicy.maintenance(MainActivity.this))){
+                suspendExhibition();exhibitionStarted=false;showStart();
+                beginProtectedExhibition();
+            }
+            handler.postDelayed(this,500);
+        }
+    };
     private final BroadcastReceiver screenReceiver=new BroadcastReceiver(){
         @Override public void onReceive(Context context,Intent intent){
             if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){if(exhibitionStarted)suspendExhibition();}
@@ -138,9 +148,7 @@ public class MainActivity extends Activity {
         endpoint=getPreferences(MODE_PRIVATE).getString("endpoint","");
         String supplied=getIntent().getStringExtra("url");
         if(supplied!=null && validEndpoint(supplied)){endpoint=supplied;saveEndpoint();}
-        exhibitionStarted=state!=null&&state.getBoolean("exhibitionStarted",false)&&validEndpoint(endpoint);
-        if(exhibitionStarted)allowExhibitionOverLock();
-        else if(validEndpoint(endpoint))showStart();else showSetup();
+        if(validEndpoint(endpoint))showStart();else showSetup();
         IntentFilter screenEvents=new IntentFilter(Intent.ACTION_SCREEN_OFF);
         screenEvents.addAction(Intent.ACTION_SCREEN_ON);
         registerReceiver(screenReceiver,screenEvents);
@@ -165,20 +173,19 @@ public class MainActivity extends Activity {
     }
     private void showStart(){
         LinearLayout box=panel();box.addView(label("전시 모바일"));
-        box.addView(label("시작 후 앱 고정 안내가 나오면 확인해 주세요. 잠금 해제에는 휴대전화의 PIN을 사용합니다."));
-        KeyguardManager keyguard=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        if(!keyguard.isDeviceSecure())box.addView(label("관객이 앱 고정을 해제하지 못하도록 휴대전화 잠금 PIN도 설정해 주세요."));
+        box.addView(label(KioskPolicy.maintenance(this)?"관리자 점검 중 · PC에서 잠금을 다시 시작해 주세요.":
+            KioskPolicy.isOwner(this)?"전시 잠금을 확인합니다. 휴대전화 잠금을 먼저 해제해 주세요.":
+            "전시 잠금 설정이 필요합니다. PC에서 모바일 설치 도구를 실행해 주세요. 설정 전에는 관객용 화면을 시작하지 않습니다."));
         android.app.NotificationManager notifications=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-        if(!notifications.areNotificationsEnabled()){
+        if(!KioskPolicy.isOwner(this)&&!notifications.areNotificationsEnabled()){
             box.addView(label("문자가 올 때 진동이 울리려면 앱 알림을 허용해 주세요."));
             Button allow=new Button(this);allow.setText("문자 진동 알림 허용");box.addView(allow);
             allow.setOnClickListener(v->startActivity(new android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName())));
         }
         Button start=new Button(this);start.setText("전시 시작");box.addView(start);
-        start.setOnClickListener(v->{exhibitionStarted=true;allowExhibitionOverLock();resumeExhibition();
-            ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
-            if(am.getLockTaskModeState()==ActivityManager.LOCK_TASK_MODE_NONE)startLockTask();});
+        start.setEnabled(KioskPolicy.isOwner(this)&&!KioskPolicy.maintenance(this));
+        start.setOnClickListener(v->beginProtectedExhibition());
     }
     private void checkConnection(){
         if(closed || web==null || !validEndpoint(endpoint))return;
@@ -224,9 +231,19 @@ public class MainActivity extends Activity {
         if(android.os.Build.VERSION.SDK_INT>=27)setShowWhenLocked(true);
         else getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
     }
+    private void beginProtectedExhibition(){
+        if(closed||!resumed||!validEndpoint(endpoint)||KioskPolicy.maintenance(this))return;
+        try{
+            if(!KioskPolicy.enter(this))return;
+            exhibitionStarted=true;allowExhibitionOverLock();resumeExhibition();
+        }catch(RuntimeException error){
+            android.util.Log.e("ExhibitionKiosk","Could not enforce kiosk lock",error);
+            if(web!=null)suspendExhibition();exhibitionStarted=false;showStart();
+        }
+    }
     private void resumeExhibition(){
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
-        if(closed||!resumed||!exhibitionStarted||!power.isInteractive()||web!=null)return;
+        if(closed||!resumed||!exhibitionStarted||!power.isInteractive()||web!=null||!KioskPolicy.locked(this)||KioskPolicy.maintenance(this))return;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         openExhibition();
     }
@@ -268,9 +285,15 @@ public class MainActivity extends Activity {
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);
         settings.setSupportZoom(false);settings.setBuiltInZoomControls(false);settings.setDisplayZoomControls(false);
-        settings.setSupportMultipleWindows(false);settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setSupportMultipleWindows(true);settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        web.setWebChromeClient(new android.webkit.WebChromeClient(){
+            @Override public boolean onCreateWindow(WebView view,boolean dialog,boolean gesture,android.os.Message result){return false;}
+        });
+        web.setDownloadListener((url,agent,disposition,mime,length)->{});
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         web.setOnLongClickListener(v->true);web.setLongClickable(false);
         web.setWebViewClient(new WebViewClient(){
+            @Override public boolean shouldOverrideUrlLoading(WebView view,String url){return !endpoint.equals(url);}
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
                 // Never leave the paired phone page or open another application.
                 return !endpoint.equals(request.getUrl().toString());
@@ -301,9 +324,21 @@ public class MainActivity extends Activity {
         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
         View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);}
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
-    @Override public void onResume(){super.onResume();resumed=true;immersive();resumeExhibition();}
+    @Override public void onResume(){
+        super.onResume();resumed=true;immersive();beginProtectedExhibition();
+        handler.removeCallbacks(checkKiosk);handler.post(checkKiosk);
+    }
+    @Override public void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);
+        if(KioskPolicy.maintenance(this)){
+            if(exhibitionStarted)suspendExhibition();exhibitionStarted=false;
+            if(android.os.Build.VERSION.SDK_INT>=27)setShowWhenLocked(false);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+            showStart();
+        }else beginProtectedExhibition();
+    }
     @Override public void onSaveInstanceState(Bundle state){state.putBoolean("exhibitionStarted",exhibitionStarted);super.onSaveInstanceState(state);}
-    @Override public void onPause(){resumed=false;if(exhibitionStarted)suspendExhibition();super.onPause();}
+    @Override public void onPause(){resumed=false;handler.removeCallbacks(checkKiosk);if(exhibitionStarted)suspendExhibition();super.onPause();}
     @Override public void onBackPressed(){if(web!=null){web.evaluateJavascript("document.activeElement && document.activeElement.blur()",null);immersive();}}
     @Override public void onDestroy(){closed=true;unregisterReceiver(screenReceiver);network.shutdownNow();handler.removeCallbacksAndMessages(null);if(vibrator!=null)vibrator.cancel();if(web!=null){web.stopLoading();web.destroy();}super.onDestroy();}
 }

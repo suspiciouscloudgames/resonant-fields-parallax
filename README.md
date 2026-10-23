@@ -6,7 +6,9 @@
 
 관리형 전시 PC는 로그인 시 자동 실행되며, GitHub 최신 정식 릴리스의 `exhibition-update.json`을 1분마다 확인합니다. v0.3.18부터 다운로드와 검증을 마친 새 버전은 루프 종료를 기다리지 않고 바로 적용하며, 실행 실패 시 이전 버전으로 돌아갑니다. PC 재시작 후 열려 있던 모바일도 서버 변경을 감지하여 자동으로 새 내용을 불러옵니다. GitHub 확인 주기는 1분이며 다운로드 시간은 네트워크 상태에 따라 달라집니다. 기존 구버전에서 v0.3.18로 처음 넘어갈 때만 기존 루프 경계 규칙이 적용될 수 있습니다. 인터넷이 끊기면 설치된 버전을 계속 사용합니다. 관리형 설치는 `install-exhibition.ps1`로 구성하며 공유 기록과 모바일 연결 키는 사용자 폴더의 `Exhibition/runtime-data`에 유지됩니다. `exhibition-manager.py`의 로컬 제어로 시작·종료하며 Windows 자동 로그인은 Microsoft Autologon에서 한 번 설정합니다.
 
-Android는 릴리스의 `Exhibition-Mobile.apk`를 한 번 설치하여 PC의 모바일 주소에 연결합니다. 주소창 없는 전체화면, 화면 켜짐 유지와 밝기 55% 고정, PIN으로 보호되는 앱 고정을 사용하며 충전기에 계속 연결합니다. 앱은 PC 주소가 바뀌면 같은 LAN에서 저장된 연결 키로 다시 찾고, PC가 새 버전으로 재시작되면 웹 콘텐츠를 다시 불러옵니다. 장면·게임·문자 변경에는 APK를 다시 설치하지 않습니다. 모바일 APK 1.3부터 측면 버튼으로 화면을 끄면 모바일 재생·진동·통신이 중단되고, 화면을 다시 켜면 잠금 화면 위에서 전시 앱이 PC의 현재 장면에 다시 연결됩니다. PC 전시 진행은 계속됩니다. 앱 자체를 종료하거나 폰을 재부팅했을 때는 앱을 다시 열고 Android 앱 고정을 승인합니다.
+Android 모바일 1.6은 일반 화면 고정 대신 기기 소유자(Device Owner)의 전용 잠금을 사용합니다. **APK 설치와 현장 USB 설정이 필요하며 PC 자동 업데이트로 적용되지 않습니다.** 모바일 릴리스의 `Exhibition-Mobile-Kiosk-Windows.zip`을 풀고 `INSTALL.bat`을 실행합니다. 실제 LOCKED 상태를 확인하기 전에는 관객용 화면을 시작하지 않습니다. 홈·최근 앱·알림창·외부 창을 막고 관리자 점검은 USB 도구로만 허용합니다. 재부팅 시 기본 홈으로 복귀하며, 기기 PIN이 있으면 운영자의 첫 잠금 해제가 필요할 수 있습니다. 기존 PC 연결 주소·메시지·게임 기능과 측면 버튼의 화면 끄기/켜기는 유지합니다. [현장 설치와 복구 안내](android-kiosk/INSTALL-KIOSK.md)를 참고하세요. 기기 소유자 등록이 거부되면 데이터 삭제 없이 중단합니다.
+
+운영 정책: 관람 중 임의 배포·업데이트를 금지합니다. 매 배포와 현장 적용은 사용자의 해당 업데이트에 대한 명시적 허가 후에만 진행합니다. 모바일 전용 릴리스에는 PC 자동 업데이트 매니페스트를 넣지 않습니다.
 
 흡연 45초 → 비 115초 → 유튜브 100초 → 경찰차 185초 → 게임 190초 + 추가 정산 → 들개 325초. 기본 16분 반복이며 게임의 남은 특수 보석 정산만큼 늘어납니다.
 
@@ -25,7 +27,7 @@ Android는 릴리스의 `Exhibition-Mobile.apk`를 한 번 설치하여 PC의 �
 - 캐릭터는 세로 기기를 들고 모바일의 게임·영상·메시지 상태를 픽셀 화면으로 보여줍니다.
 - 듀얼 디스플레이 PC가 장면·게임 상태의 기준입니다. 다른 작품용 수신 이벤트는 `dist/exhibition-events.js`와 `integration/event-contract.json`에 준비되어 있습니다.
 
-[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/latest)
+[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/tag/v0.3.24-smooth-transitions-audio)
 
 ZIP을 풀고 `TEST-THREE-SCREENS.bat`을 실행하면 세 창으로 테스트합니다. 실제 Windows 전시 PC에서는 `START.bat`을 실행합니다. 가로·세로 모니터가 각 한 대씩 연결되어 있어야 합니다. Edge 또는 Chrome이 필요하며 ZIP에는 Python 런타임이 포함되어 있습니다.
 
