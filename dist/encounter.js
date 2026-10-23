@@ -109,7 +109,7 @@ window.SceneEncounter=(()=>{
   function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(Math.round(x*3)/3,Math.round(y*3)/3,Math.max(1,Math.round(w*3))/3,Math.max(1,Math.round(h*3))/3);}
   function line(c,a,b,width,color){const steps=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])*3));for(let i=0;i<=steps;i++)rect(c,a[0]+(b[0]-a[0])*i/steps-width/2,a[1]+(b[1]-a[1])*i/steps-width/2,width,width,color);}
   function sign(c,x,y,fallen=false,damaged=false){
-    SceneCharacter.placard(c,x-1.75,y-(fallen?0:2),11.5,fallen?3.3:7,damaged);
+    SceneCharacter.placard(c,x-1.75,y-(fallen?0:2),11.5,fallen?3.3:7,damaged,'police');
   }
   function person(c,a,time,gesture='rest',amount=0){
     SceneCharacter.encounterPerson(c,a,time,gesture,amount,perspective(a.y));
@@ -145,7 +145,7 @@ window.SceneEncounter=(()=>{
     }
     const actors=[];
     if(f.protagonistVisible)actors.push({y:264-41*f.protagonistProgress,draw:()=>{
-      SceneCharacter.outdoor(c,f.protagonistProgress,f.phase==='leave',time,f.sign==='held'?1:0,animationTime,{showSign:['held','carried'].includes(f.sign),bend:f.phase==='pickup'?Math.sin(f.p*Math.PI):0,damaged:f.damaged});
+      SceneCharacter.outdoor(c,f.protagonistProgress,f.phase==='leave',time,f.sign==='held'?1:0,animationTime,{placard:'police',showSign:['held','carried'].includes(f.sign),bend:f.phase==='pickup'?Math.sin(f.p*Math.PI):0,damaged:f.damaged});
     }});
     for(const a of f.people)if(a.visible)actors.push({y:a.y,draw:()=>{
       let gesture='rest',amount=0;

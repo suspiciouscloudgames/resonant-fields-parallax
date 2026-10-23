@@ -590,10 +590,11 @@
         outside.rect(x/density,y/density,(Math.ceil((r.x+r.w)*density-.5)-x)/density,(Math.ceil((r.y+r.h)*density-.5)-y)/density);
       }outside.clip();}
       const projection=SceneEncounter.projection;outside.translate(projection.x,projection.y);outside.scale(projection.scaleX,projection.scaleY);outside.translate(-projection.originX,-projection.originY);
-      if(state==='emerge')SceneCharacter.outdoor(outside,p,true,elapsed,0,animationTime);
+      const placard=['police','dog','rain'][selectedEncounter-1];
+      if(state==='emerge')SceneCharacter.outdoor(outside,p,true,elapsed,0,animationTime,{placard});
       if(['pause','raise','outside','lower'].includes(state)){
         const lift=state==='raise'?p:state==='lower'?1-p:state==='outside'?1:0;
-        SceneCharacter.outdoor(outside,1,false,elapsed,lift,animationTime);
+        SceneCharacter.outdoor(outside,1,false,elapsed,lift,animationTime,{placard});
       }
       if(['encounter','ended'].includes(state)&&window.SceneEncounter)SceneEncounter.draw(outside,state==='ended'?SceneEncounter.duration:elapsed,traffic,animationTime);
       if(state==='dog_encounter')SceneDogEncounter.draw(outside,elapsed,animationTime);

@@ -631,8 +631,22 @@ window.SceneCharacter = (() => {
     })));
   });
   placardContext.fillStyle='#137340';placardContext.fillRect(2,18,31,2);
-  function placard(c,x,y,w=11.5,h=7,damaged=false){
-    c.save();c.imageSmoothingEnabled=false;c.drawImage(placardArt,x,y,w,h);
+  Object.assign(placardGlyphs,{
+    Z:['111','001','010','100','111'],J:['111','001','001','101','111'],U:['101','101','101','101','111'],
+    F:['111','100','110','100','100'],A:['010','101','111','101','101'],
+    M:['101','111','111','101','101'],Y:['101','101','010','010','010'],
+    ' ':['000','000','000','000','000'],',':['000','000','000','010','100']
+  });
+  function makePlacard(lines){
+    const art=document.createElement('canvas');art.width=Math.max(...lines.map(s=>s.length))*4+3;art.height=lines.length*6+5;
+    const c=art.getContext('2d');c.fillStyle='#262923';c.fillRect(0,0,art.width,art.height);c.fillStyle='#f4f3ec';c.fillRect(1,1,art.width-2,art.height-2);
+    lines.forEach((word,line)=>{c.fillStyle=line===0?'#be3034':'#111512';const left=(art.width-(word.length*4-1))/2;
+      [...word].forEach((letter,n)=>placardGlyphs[letter].forEach((row,y)=>[...row].forEach((cell,x)=>{if(cell==='1')c.fillRect(left+n*4+x,2+line*6+y,1,1);})));
+    });c.fillStyle='#137340';c.fillRect(2,art.height-3,art.width-4,1);return art;
+  }
+  const placardVariants={rain:placardArt,police:makePlacard(['JESUS','DOES NOT','KILL CHILDREN']),dog:makePlacard(['FREE GAZA','MURDERERS,','GET OUT'])};
+  function placard(c,x,y,w=11.5,h=7,damaged=false,variant='rain'){
+    c.save();c.imageSmoothingEnabled=false;c.drawImage(placardVariants[variant]||placardArt,x,y,w,h);
     if(damaged){
       // Small edge tears preserve the message after the board has been stepped on.
       c.fillStyle='#73796b';c.fillRect(x,y+h*.62,w*.08,h*.13);
@@ -693,7 +707,7 @@ window.SceneCharacter = (() => {
     if(options.showSign!==false){
     const boardTop=Math.round(y-21+(25+boardY)*23/124);
     const aside=Number(options.carryAside)||0;
-    placard(c,x-5.75+7.25*aside,(boardTop-2)*(1-aside)+(y-10)*aside,11.5-5.8*aside,7-2.6*aside,options.damaged);
+    placard(c,x-5.75+7.25*aside,(boardTop-2)*(1-aside)+(y-10)*aside,11.5-5.8*aside,7-2.6*aside,options.damaged,options.placard);
     }
     c.restore();
   }

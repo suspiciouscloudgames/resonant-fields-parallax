@@ -176,7 +176,7 @@ window.SceneDogEncounter=(()=>{
   function draw(c,time,animationTime=time){
     const f=sample(time);
     if(f.food.visible){const [x,y]=f.food.position;for(let i=0;i<Math.ceil(f.food.remaining*5);i++){c.fillStyle=i%2?'#7c735b':'#b2a78a';c.fillRect(x+(i%3)*.4-.6,y+Math.floor(i/3)*.35,.55,.35);}}
-    const hero=()=>{if(f.hero.visible)SceneCharacter.outdoor(c,1,f.hero.moving,f.hero.gaitTime,f.hero.lift,animationTime,{position:f.hero.position,feedBend:true,bend:f.hero.bend,bendDirection:-1,pocket:f.hero.pocket,reach:f.hero.reach,food:f.hero.food,carryAside:1-f.hero.lift});};
+    const hero=()=>{if(f.hero.visible)SceneCharacter.outdoor(c,1,f.hero.moving,f.hero.gaitTime,f.hero.lift,animationTime,{placard:'dog',position:f.hero.position,feedBend:true,bend:f.hero.bend,bendDirection:-1,pocket:f.hero.pocket,reach:f.hero.reach,food:f.hero.food,carryAside:1-f.hero.lift});};
     if(f.dog.position[1]<f.hero.position[1]){drawDog(c,f.dog,animationTime);hero();}else{hero();drawDog(c,f.dog,animationTime);}
     return f;
   }
