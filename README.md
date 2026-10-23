@@ -6,9 +6,11 @@
 
 관리형 전시 PC는 로그인 시 자동 실행되며, GitHub 최신 정식 릴리스의 `exhibition-update.json`을 1분마다 확인합니다. v0.3.18부터 다운로드와 검증을 마친 새 버전은 루프 종료를 기다리지 않고 바로 적용하며, 실행 실패 시 이전 버전으로 돌아갑니다. PC 재시작 후 열려 있던 모바일도 서버 변경을 감지하여 자동으로 새 내용을 불러옵니다. GitHub 확인 주기는 1분이며 다운로드 시간은 네트워크 상태에 따라 달라집니다. 기존 구버전에서 v0.3.18로 처음 넘어갈 때만 기존 루프 경계 규칙이 적용될 수 있습니다. 인터넷이 끊기면 설치된 버전을 계속 사용합니다. 관리형 설치는 `install-exhibition.ps1`로 구성하며 공유 기록과 모바일 연결 키는 사용자 폴더의 `Exhibition/runtime-data`에 유지됩니다. `exhibition-manager.py`의 로컬 제어로 시작·종료하며 Windows 자동 로그인은 Microsoft Autologon에서 한 번 설정합니다.
 
-Android 모바일 1.6은 일반 화면 고정 대신 기기 소유자(Device Owner)의 전용 잠금을 사용합니다. **APK 설치와 현장 USB 설정이 필요하며 PC 자동 업데이트로 적용되지 않습니다.** 모바일 릴리스의 `Exhibition-Mobile-Kiosk-Windows.zip`을 풀고 `INSTALL.bat`을 실행합니다. 실제 LOCKED 상태를 확인하기 전에는 관객용 화면을 시작하지 않습니다. 홈·최근 앱·알림창·외부 창을 막고 관리자 점검은 USB 도구로만 허용합니다. 재부팅 시 기본 홈으로 복귀하며, 기기 PIN이 있으면 운영자의 첫 잠금 해제가 필요할 수 있습니다. 기존 PC 연결 주소·메시지·게임 기능과 측면 버튼의 화면 끄기/켜기는 유지합니다. [현장 설치와 복구 안내](android-kiosk/INSTALL-KIOSK.md)를 참고하세요. 기기 소유자 등록이 거부되면 데이터 삭제 없이 중단합니다.
+Android 모바일 1.7은 일반 화면 고정 대신 기기 소유자(Device Owner)의 전용 잠금을 사용합니다. **APK 설치와 현장 USB 설정이 필요하며 PC 자동 업데이트로 적용되지 않습니다.** 모바일 릴리스의 `Exhibition-Mobile-Kiosk-Windows.zip`을 풀고 `INSTALL.bat`을 실행합니다. 실제 LOCKED 상태를 확인하기 전에는 관객용 화면을 시작하지 않습니다. 홈·최근 앱·알림창·외부 창을 막고 관리자 점검은 USB 도구로만 허용합니다. 재부팅 시 기본 홈으로 복귀하며, 기기 PIN이 있으면 운영자의 첫 잠금 해제가 필요할 수 있습니다. 기존 PC 연결 주소·메시지·게임 기능과 측면 버튼의 화면 끄기/켜기는 유지합니다. [현장 설치와 복구 안내](android-kiosk/INSTALL-KIOSK.md)를 참고하세요. 기기 소유자 등록이 거부되면 데이터 삭제 없이 중단합니다.
 
 운영 정책: 관람 중 임의 배포·업데이트를 금지합니다. 매 배포와 현장 적용은 사용자의 해당 업데이트에 대한 명시적 허가 후에만 진행합니다. 모바일 전용 릴리스에는 PC 자동 업데이트 매니페스트를 넣지 않습니다.
+
+**운영 시간은 매일 한국시간 12:45~18:00입니다.** 18:00에 PC 두 화면과 모바일을 검정으로 바꾸고 배경음악·게임 소리·진동을 중단합니다. 기기는 켜진 채 대기하며 터치로 다시 표시되지 않습니다. 다음 날 12:45에는 첫 씬부터 새 루프를 시작합니다. Windows의 절전 방지와 전시 실행을 유지하고 폰도 충전한 채 켜 두어야 합니다. 기기를 물리적으로 끄거나 정전되면 자동 켜짐을 보장하지 않습니다. 모바일 앱 1.7은 PC 연결이 끊겨도 같은 시간표로 검정 화면을 유지합니다.
 
 흡연 45초 → 비 115초 → 유튜브 100초 → 경찰차 185초 → 게임 190초 + 추가 정산 → 들개 325초. 기본 16분 반복이며 게임의 남은 특수 보석 정산만큼 늘어납니다.
 
@@ -27,7 +29,7 @@ Android 모바일 1.6은 일반 화면 고정 대신 기기 소유자(Device Own
 - 캐릭터는 세로 기기를 들고 모바일의 게임·영상·메시지 상태를 픽셀 화면으로 보여줍니다.
 - 듀얼 디스플레이 PC가 장면·게임 상태의 기준입니다. 다른 작품용 수신 이벤트는 `dist/exhibition-events.js`와 `integration/event-contract.json`에 준비되어 있습니다.
 
-[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/tag/v0.3.24-smooth-transitions-audio)
+[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/tag/v0.3.26-exhibition-hours)
 
 ZIP을 풀고 `TEST-THREE-SCREENS.bat`을 실행하면 세 창으로 테스트합니다. 실제 Windows 전시 PC에서는 `START.bat`을 실행합니다. 가로·세로 모니터가 각 한 대씩 연결되어 있어야 합니다. Edge 또는 Chrome이 필요하며 ZIP에는 Python 런타임이 포함되어 있습니다.
 

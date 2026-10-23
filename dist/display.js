@@ -66,6 +66,7 @@
     const app=hub();error.hidden=exhibition||!!app;
     if(app?.engine.ready){
       if(app.advance)app.advance(Date.now());else app.engine.advance(Date.now());
+      if(exhibition)ExhibitionHours.setSleeping(app.sleeping??!ExhibitionHours.isOpen());
       // In exhibition fullscreen the known physical active area is the ruler.
       // Native resolutions need not have square physical pixels (e.g. 1024x600).
       const full=exhibition||!!document.fullscreenElement;
@@ -81,6 +82,7 @@
       document.body.classList.toggle('fullscreen',full);
       document.getElementById('size').textContent=`${innerWidth} × ${innerHeight} px${full?` · 전체 표시 영역을 ${w} × ${h} mm로 사용합니다.`:` · 미리보기. 실제 ${w} × ${h} mm 디스플레이에서는 F 키로 전체화면을 사용하세요.`}`;
     }
+    if(exhibition&&!app)ExhibitionHours.setSleeping(!ExhibitionHours.isOpen());
     requestAnimationFrame(frame);
   }
   if(exhibition){

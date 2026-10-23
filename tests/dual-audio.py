@@ -1,5 +1,6 @@
 """PC and mobile must each produce the full mix, without unmuting YouTube."""
-import importlib.util,json,sys,tempfile,threading,shutil,urllib.request
+import importlib.util,json,sys,tempfile,threading,shutil,urllib.request,urllib.error,time,base64,io
+from PIL import Image
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 spec=importlib.util.spec_from_file_location('launcher',ROOT/'exhibition-launcher.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
@@ -9,10 +10,10 @@ meter='''const NativeAudio=window.AudioContext;window.audioMeters=[];window.Audi
 try:
  process,cdp=L.connect_browser('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',folder/'chrome',origin+'/exhibition.html?run=dual-audio',['--headless=new','--screen-info={0,0 1024x600}{1024,0 600x1024}'])
  hub=L.target_session(cdp,next(t['targetId'] for t in cdp.call('Target.getTargets')['targetInfos'] if '/exhibition.html' in t.get('url','')))
- cdp.call('Page.enable',{},hub);cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':meter},hub);cdp.call('Page.reload',{},hub)
+ cdp.call('Page.enable',{},hub);cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':meter+";addEventListener('DOMContentLoaded',()=>{ExhibitionHours.isOpen=()=>true;ExhibitionHours.setSleeping(false);});"},hub);cdp.call('Page.reload',{},hub)
  L.wait_for(lambda:cdp.evaluate(hub,'(window.audioMeters?.length||0)>=2'))
  hub,outputs=L.launch_outputs(cdp,origin,'dual-audio')
- target=cdp.call('Target.createTarget',{'url':'about:blank'});phone=L.target_session(cdp,target['targetId']);cdp.call('Page.enable',{},phone);cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':meter},phone);cdp.call('Page.navigate',{'url':origin+'/phone.html?key=dual-audio'},phone)
+ target=cdp.call('Target.createTarget',{'url':'about:blank'});phone=L.target_session(cdp,target['targetId']);cdp.call('Page.enable',{},phone);cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':meter+";addEventListener('DOMContentLoaded',()=>{ExhibitionHours.isOpen=()=>true;ExhibitionHours.setSleeping(false);});"},phone);cdp.call('Page.navigate',{'url':origin+'/phone.html?key=dual-audio'},phone)
  def ev(session,code):return cdp.evaluate(session,code)
  def status(session):return ev(session,'({scene:SceneAudio.status,game:BlitzAudio.status})')
  def rms(session):return ev(session,'Math.sqrt(audioMeters.reduce((sum,m)=>{const a=new Float32Array(m.fftSize);m.getFloatTimeDomainData(a);return sum+a.reduce((s,v)=>s+v*v,0)/a.length},0))')
@@ -54,6 +55,33 @@ try:
   L.wait_for(lambda:status(session)['scene']['targets']=={'music':0,'traffic':0,'rain':0})
   L.wait_for(lambda:rms(session)<.00001)
  print('PASS: actual PC and mobile audio output for music, street, rain and game; shared game duck/recovery, pause, and permanently muted YouTube.',flush=True)
+ # Simulate daily close while a game and a text input are active.
+ at('game','gaming');action('open')
+ old_run=ev(hub,'Installation.playback.status.runId')
+ ev(hub,'ExhibitionHours.isOpen=()=>false')
+ L.wait_for(lambda:ev(phone,'PhoneView.sleeping'))
+ sessions=[phone]+[L.target_session(cdp,t['targetId']) for t in cdp.call('Target.getTargets')['targetInfos'] if '/display.html' in t.get('url','')]
+ for view in sessions:
+  L.wait_for(lambda:ev(view,"document.documentElement.classList.contains('exhibition-sleep')"))
+  shot=cdp.call('Page.captureScreenshot',{},view)['data'];im=Image.open(io.BytesIO(base64.b64decode(shot))).convert('RGB')
+  assert im.getextrema()==((0,0),(0,0),(0,0)),('not black',view,im.getextrema())
+ for view in [hub,phone]:
+  L.wait_for(lambda:status(view)['scene']['targets']=={'music':0,'traffic':0,'rain':0})
+  L.wait_for(lambda:rms(view)<.00001)
+  assert not status(view)['game']['playing']
+ elapsed=ev(hub,'Installation.playback.status.elapsed');time.sleep(.2)
+ assert ev(hub,'Installation.playback.status.elapsed')==elapsed
+ try:action('open');raise AssertionError('Closed exhibition accepted phone input')
+ except urllib.error.HTTPError as error:assert error.code==409
+ # Host receives a new day/open transition, starts fresh and restores all outputs.
+ ev(hub,'ExhibitionHours.isOpen=()=>true')
+ L.wait_for(lambda:ev(hub,'Installation.playback.status.runId')!=old_run)
+ L.wait_for(lambda:not ev(phone,'PhoneView.sleeping'))
+ for view in sessions:L.wait_for(lambda:not ev(view,"document.documentElement.classList.contains('exhibition-sleep')"))
+ assert ev(hub,'Installation.playback.status.current.id')=='smoking'
+ levels({'music':.42,'traffic':0,'rain':0})
+ print('PASS: both PC outputs and phone are pixel-black at closing; audio/input/clock stop; opening restores a new loop and sound.',flush=True)
+
 finally:
  if cdp:
   try:cdp.call('Browser.close')

@@ -60,6 +60,13 @@ public class MainActivity extends Activity {
                 suspendExhibition();exhibitionStarted=false;showStart();
                 beginProtectedExhibition();
             }
+            if(exhibitionStarted){
+                if(!OperatingHours.isOpen(System.currentTimeMillis())){
+                    if(web!=null)suspendExhibition();
+                    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    root.setBackgroundColor(Color.BLACK);setExhibitionBrightness(0f);
+                }else resumeExhibition();
+            }
             handler.postDelayed(this,500);
         }
     };
@@ -172,6 +179,7 @@ public class MainActivity extends Activity {
             endpoint=value;saveEndpoint();showStart();});
     }
     private void showStart(){
+        setExhibitionBrightness(0.55f);
         LinearLayout box=panel();box.addView(label("전시 모바일"));
         box.addView(label(KioskPolicy.maintenance(this)?"관리자 점검 중 · PC에서 잠금을 다시 시작해 주세요.":
             KioskPolicy.isOwner(this)?"전시 잠금을 확인합니다. 휴대전화 잠금을 먼저 해제해 주세요.":
@@ -244,8 +252,17 @@ public class MainActivity extends Activity {
     private void resumeExhibition(){
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
         if(closed||!resumed||!exhibitionStarted||!power.isInteractive()||web!=null||!KioskPolicy.locked(this)||KioskPolicy.maintenance(this))return;
+        if(!OperatingHours.isOpen(System.currentTimeMillis())){
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            root.removeAllViews();root.setBackgroundColor(Color.BLACK);setExhibitionBrightness(0f);return;
+        }
+        setExhibitionBrightness(0.55f);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         openExhibition();
+    }
+    private void setExhibitionBrightness(float value){
+        WindowManager.LayoutParams attributes=getWindow().getAttributes();
+        if(attributes.screenBrightness!=value){attributes.screenBrightness=value;getWindow().setAttributes(attributes);}
     }
     private void suspendExhibition(){
         pageGeneration++;arrivals.reconnect();
@@ -281,6 +298,7 @@ public class MainActivity extends Activity {
         }));dialog.show();
     }
     private void openExhibition(){
+        root.setBackgroundColor(Color.BLACK);
         root.removeAllViews();disconnectedChecks=0;WebView.setWebContentsDebuggingEnabled(getIntent().getBooleanExtra("diagnostics",false));web=new WebView(this);web.setBackgroundColor(Color.rgb(16,19,24));web.setKeepScreenOn(true);
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);

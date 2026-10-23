@@ -24,12 +24,12 @@
     return false;
   }
   const token=new URLSearchParams(location.search).get('run')||'';
-  let lastPublish=0,publishing=false,lastDraw=-Infinity;
+  let lastPublish=0,publishing=false,lastDraw=-Infinity,sleeping=null;
   async function publish(force=false){
     const now=Date.now();if(publishing||(!force&&now-lastPublish<40))return;
     lastPublish=now;publishing=true;
     try{const response=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json','X-Exhibition-Token':token},
-      body:JSON.stringify({...playback.status,cues:playback.cues,observedAt:now,game:playback.status.current.id==='game'?session?.state:null,inputAck})});
+      body:JSON.stringify({...playback.status,sleeping:!!sleeping,cues:playback.cues,observedAt:now,game:playback.status.current?.id==='game'?session?.state:null,inputAck})});
       if(response.ok){const data=await response.json();DeviceScreen.setVideoSeek(data.videoSeek||null);phoneState=data.phoneState;DeviceScreen.setPhoneState(phoneState);for(const input of data.inputs||[]){
         if(input.id<=inputAck)continue;inputAck=input.id;
         const status=playback.status;
@@ -42,9 +42,14 @@
   window.Installation={
     sizes,engine:SceneGame,playback,pxPerMM:96/25.4,placementReady:false,error:null,
     // Both display windows request frames; compose the shared pixel scene once.
+    get sleeping(){return sleeping===null?!ExhibitionHours.isOpen():sleeping;},
     advance(now){if(now-lastDraw>=1000/30-1){
+      const closed=!ExhibitionHours.isOpen(now);
+      if(closed){if(playback.started&&!playback.status.paused)playback.pause(true,now);}
+      else if(sleeping===true&&playback.started)playback.start(now);
+      sleeping=closed;ExhibitionHours.setSleeping(closed);
       lastDraw=now;playback.advance(now);
-      const cue=playback.status.current,paused=playback.status.paused||!playback.started,foreground=foregroundAudio(cue);
+      const cue=playback.status.current,paused=sleeping||playback.status.paused||!playback.started,foreground=foregroundAudio(cue);
       SceneAudio.update(cue,paused,foreground);
       BlitzAudio.update({...cue?.phone,paused:paused||!foreground},cue?.phone.mode==='game'?session?.state:null);
     }publish();},publish,

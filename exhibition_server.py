@@ -50,7 +50,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
 
     def active_phase(self):
         value = self.state
-        if not value or not value['started'] or time.monotonic()-self.state_received >= 3:
+        if not value or value.get('sleeping') or not value['started'] or time.monotonic()-self.state_received >= 3:
             return None
         c=value.get('current')
         if not c:return None
@@ -104,6 +104,9 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
             self.last_base_mode=mode
         if c['phone'].get('sceneLock') and self.ui['open']:
             self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
+        if value.get('sleeping'):
+            if self.ui['open']:self.ui.update(open=False,conversationId=None,revision=self.ui['revision']+1)
+            return
         deliveries=self.scene_messages.get(c['id'],[{'id':'midpoint','at':c['messageAt'],'text':str(c['index']+1)+'씬 테스트'}])
         for delivery in deliveries:
             if c['elapsed']<delivery['at']:continue
@@ -188,7 +191,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             allowed = {'/phone.html', '/phone.js', '/phone.css', '/device-screen.js', '/exhibition-playback.js', '/media/blank-video.webm', '/media/youtube-short.mp4', '/video-controls.js', '/video-controls.css',
                        '/phone-messages.js', '/phone-messages.css', '/blitz-session.js', '/exhibition-events.js', '/blitz-game.js', '/blitz-view.js', '/blitz-input.js', '/blitz-presentation.js', '/blitz-audio.js', '/media/blitz/frame.png', '/media/blitz/board.png', '/media/blitz/gems.png',
                        '/media/blitz/recording.m4a', '/media/blitz/match.m4a', '/media/blitz/swap.m4a', '/media/blitz/power.m4a',
-                       '/scene-audio.js', '/rain-encounter.js', '/media/ambience/traffic.m4a', '/media/ambience/rain.m4a', '/media/music/to-the-star.mp3'}
+                       '/exhibition-hours.js', '/scene-audio.js', '/rain-encounter.js', '/media/ambience/traffic.m4a', '/media/ambience/rain.m4a', '/media/music/to-the-star.mp3'}
             if parsed.path not in allowed:
                 return self.reply({'error': 'Not found'}, 404)
         return super().do_GET()
@@ -270,7 +273,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if c['phone'].get('mode') not in ('clock','youtube','game') or not isinstance(c.get('instance'),str):
                 raise ValueError('Invalid phone cue')
             ack = value.get('inputAck', 0)
+            sleeping=value.get('sleeping') is True
             value = {k: value[k] for k in ('started', 'paused', 'elapsed', 'cues', 'runId', 'game', 'current', 'lastCycleMilliseconds')}
+            value['sleeping']=sleeping
+            if sleeping:value['paused']=True
             value['observedAt'] = observed
             value['inputAck'] = ack if isinstance(ack, int) else 0
             with self.server.state_lock:

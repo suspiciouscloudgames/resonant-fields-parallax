@@ -18,7 +18,8 @@
   function connected(){return !!snapshot?.connected&&performance.now()-lastGood<3000;}
   function authoritative(){return snapshot?.game?.round===current.round?snapshot.game:null;}
   function game(){return pending?.round===current.round&&pending.view?pending.view:authoritative();}
-  function playable(){return !messages.open&&connected()&&current.mode==='game'&&!current.paused&&game()?.stage==='play'&&game()?.phase==='idle'&&!pending;}
+  let sleeping=!ExhibitionHours.isOpen();
+  function playable(){return !sleeping&&!messages.open&&connected()&&current.mode==='game'&&!current.paused&&game()?.stage==='play'&&game()?.phase==='idle'&&!pending;}
   async function poll(){
     const sent=performance.now();
     try{const r=await fetch('/api/state?key='+encodeURIComponent(key),{cache:'no-store',signal:AbortSignal.timeout(2500)});if(!r.ok)throw Error('Not connected');
@@ -50,6 +51,9 @@
     if(live&&snapshot.started)current=ExhibitionPlayback.project(snapshot,age);
     else current={mode:'clock',elapsed:0,paused:true,round:null,instance:snapshot?.current?.instance};
     const wall=snapshot?snapshot.serverTime+now-received:Date.now();
+    sleeping=!ExhibitionHours.isOpen(wall)||!!snapshot?.sleeping;
+    ExhibitionHours.setSleeping(sleeping);
+    if(sleeping)current={...current,mode:'clock',paused:true,sceneLock:true};
     DeviceScreen.setPhoneState(snapshot?.phoneState);DeviceScreen.setVideoRound(current.instance);
     messages.update(snapshot?.phoneState,current,wall);
     video.hidden=current.mode!=='youtube'||messages.open;
@@ -90,6 +94,6 @@
   document.getElementById('close-operator').onclick=()=>document.getElementById('operator').hidden=true;
   addEventListener('keydown',async e=>{if(e.key.toLowerCase()!=='h')return;const panel=document.getElementById('operator');panel.hidden=!panel.hidden;
     if(!panel.hidden){try{const info=await(await fetch('/api/info?key='+encodeURIComponent(key))).json();const a=document.getElementById('phone-link');a.textContent=info.phoneUrl;a.href=info.phoneUrl;}catch{}}});
-  window.PhoneView={get serverId(){return serverId;},get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return input.selected;},get pending(){return !!pending;}};
+  window.PhoneView={get sleeping(){return sleeping;},get serverId(){return serverId;},get state(){return current;},get messages(){return messages.state;},get connected(){return connected();},get game(){return game();},get playable(){return playable();},get selected(){return input.selected;},get pending(){return !!pending;}};
   poll();requestAnimationFrame(frame);
 })();
