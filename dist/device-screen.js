@@ -5,7 +5,7 @@ window.DeviceScreen=(()=>{
   function videoDuration(){return Number.isFinite(video?.duration)&&video.duration>0?video.duration:95.23;}
   function videoPosition(view=state){const offset=videoSeek?.round===videoRound?videoSeek.offset:0;return Math.max(0,Math.min(videoDuration()-.05,videoPreview??(view.elapsed/1000+offset)));}
   function setVideoSeek(value){if(!value)return;if(videoSeek?.round===value.round&&videoSeek.revision>=value.revision)return;videoSeek=value;positionPending=true;}
-  function unlockVideo(){if(!video)return;video.muted=false;video.play().then(()=>{if(state.mode!=='youtube'||window.PhoneMessages?.project(phoneState,state).open)video.pause();}).catch(()=>{});}
+  function unlockVideo(){if(!video)return;video.muted=true;video.play().then(()=>{if(state.mode!=='youtube'||window.PhoneMessages?.project(phoneState,state).open)video.pause();}).catch(()=>{});}
   function update(next){
     state={paused:false,...next};
     if(!video)return;
@@ -65,5 +65,5 @@ window.DeviceScreen=(()=>{
     if(key!==pixelKey){pixelKey=key;render(small);const a=small.getContext('2d').getImageData(0,0,24,40).data;pixelColors=Array.from({length:960},(_,i)=>`rgb(${a[i*4]},${a[i*4+1]},${a[i*4+2]})`);}
     return pixelColors;
   }
-  return {update,render,pixels,pixelWidth:24,pixelHeight:40,setPhoneState(value){phoneState=value;},setVideoSeek,setVideoRound(value){if(value!==videoRound){videoSeek=null;videoPreview=null;positionPending=true;}videoRound=value;},previewVideo(value){videoPreview=value;},videoPosition,unlockVideo,get videoDuration(){return videoDuration();},setGame(value){game=value;},get game(){return game;},setVideo(element){video=element;},get state(){return state;}};
+  return {update,render,pixels,pixelWidth:24,pixelHeight:40,setPhoneState(value){phoneState=value;},setVideoSeek,setVideoRound(value){if(value!==videoRound){videoSeek=null;videoPreview=null;positionPending=true;}videoRound=value;},previewVideo(value){videoPreview=value;},videoPosition,unlockVideo,get videoDuration(){return videoDuration();},setGame(value){game=value;},get game(){return game;},setVideo(element){video=element;if(video){video.muted=true;video.volume=0;}},get state(){return state;}};
 })();

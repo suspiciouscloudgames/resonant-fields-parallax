@@ -1,18 +1,20 @@
 /* One ambient mix on the PC host, shared by both displays. */
 window.SceneAudio=(()=>{
-  const paths={traffic:'media/ambience/traffic.m4a',rain:'media/ambience/rain.m4a'};
+  const paths={music:'media/music/to-the-star.mp3',traffic:'media/ambience/traffic.m4a',rain:'media/ambience/rain.m4a'};
   const outdoors=new Set(['emerge','pause','raise','outside','encounter','dog_encounter','rain_encounter','return_wait']);
-  let context=null,loading=null,ready=false,error=null,lastCue=null,paused=true;
-  const buffers={},channels={},targets={traffic:0,rain:0};
-  function mix(cue,isPaused=false){
-    if(isPaused||!cue||cue.side!=='outdoor'||!outdoors.has(cue.phase))return {traffic:0,rain:0};
+  let context=null,loading=null,ready=false,error=null,lastCue=null,paused=true,mediaPlaying=false;
+  const buffers={},channels={},targets={music:0,traffic:0,rain:0};
+  function mix(cue,isPaused=false,foreground=false){
+    if(isPaused||!cue)return {music:0,traffic:0,rain:0};
+    if(cue.side==='indoor')return {music:foreground?.10:.42,traffic:0,rain:0};
+    if(!outdoors.has(cue.phase))return {music:0,traffic:0,rain:0};
     const raining=cue.id==='rain'&&['rain_encounter','return_wait'].includes(cue.phase);
     const intensity=raining?(cue.phase==='rain_encounter'?SceneRainEncounter.sample(cue.phaseTime).intensity:1):0;
-    return {traffic:raining?.32:.6,rain:intensity*.85};
+    return {music:0,traffic:raining?.32:.6,rain:intensity*.85};
   }
   function apply(){
     if(!ready||context?.state!=='running')return;
-    const levels=mix(lastCue,paused),now=context.currentTime;
+    const levels=mix(lastCue,paused,mediaPlaying),now=context.currentTime;
     for(const name of Object.keys(paths)){
       if(!channels[name]){
         const source=context.createBufferSource(),gain=context.createGain();
@@ -23,7 +25,10 @@ window.SceneAudio=(()=>{
       }
       if(Math.abs(targets[name]-levels[name])<.001)continue;
       targets[name]=levels[name];
-      channels[name].gain.gain.setTargetAtTime(levels[name],now,paused?.035:name==='rain'&&levels[name]>0?.12:.28);
+      // Approach the new level from the current gain, including mid-fade changes.
+      // Scene crossfades settle in ~1.5s; duck quickly and recover gently.
+      const ducking=name==='music'&&levels.music>0&&mediaPlaying;
+      channels[name].gain.gain.setTargetAtTime(levels[name],now,paused?.035:ducking?.18:.5);
     }
   }
   async function unlock(){
@@ -36,7 +41,7 @@ window.SceneAudio=(()=>{
       await context.resume();await loading;apply();
     }catch(e){error=e.message;}
   }
-  function update(cue,isPaused=false){lastCue=cue;paused=isPaused;apply();}
+  function update(cue,isPaused=false,foreground=false){lastCue=cue;paused=isPaused;mediaPlaying=foreground;apply();}
   function stop(){paused=true;apply();}
   document.addEventListener('pointerdown',unlock);
   document.addEventListener('keydown',unlock);

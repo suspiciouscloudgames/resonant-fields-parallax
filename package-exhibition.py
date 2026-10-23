@@ -10,7 +10,7 @@ EXPECTED='97dae5274cc54867065e8d5a3226e48c35017ed332a0fdb0e27d5b5821961297'
 assert hashlib.sha256(RUNTIME.read_bytes()).hexdigest()==EXPECTED
 name='Exhibition-Mobile-Loop'
 files={'dist/exhibition-events.js','integration/event-contract.json','dist/exhibition.html','dist/display.html','dist/phone.html','dist/window-installation.json','dist/scene-messages.json',
-       'exhibition-launcher.py','exhibition-manager.py','exhibition_discovery.py','exhibition_server.py','exhibition_store.py','version.json','install-exhibition.ps1','dist/media/youtube-short.json','dist/media/ambience/sources.json'}
+       'exhibition-launcher.py','exhibition-manager.py','exhibition_discovery.py','exhibition_server.py','exhibition_store.py','version.json','install-exhibition.ps1','dist/media/youtube-short.json','dist/media/ambience/sources.json','dist/media/music/source.json'}
 queue=list(files)
 while queue:
     relative=queue.pop()

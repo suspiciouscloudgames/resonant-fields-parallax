@@ -27,8 +27,8 @@ try:
  def rms():return ev('(()=>{const a=new Float32Array(audioMeter.fftSize);audioMeter.getFloatTimeDomainData(a);return Math.sqrt(a.reduce((s,v)=>s+v*v,0)/a.length)})()')
  L.wait_for(lambda:ev('!!window.SceneAudio&&SceneAudio.status.ready'))
  assert status()['context']=='running',status()
- assert status()['targets']=={'traffic':0,'rain':0}
- L.wait_for(lambda:rms()<.00001)
+ assert status()['targets']=={'music':.42,'traffic':0,'rain':0}
+ L.wait_for(lambda:rms()>.0001)
  cues=ev('Installation.playback.cues');starts={};cursor=0
  for cue in cues:starts[cue['id']]=cursor;cursor+=cue['duration']
  def at(scene,phase,offset=1000):
@@ -50,18 +50,20 @@ try:
  L.wait_for(lambda:rms()<.00001)
  for scene,phase in [('police','encounter'),('dog','dog_encounter')]:
   at(scene,phase);L.wait_for(lambda:rms()>.0001)
-  assert status()['targets']=={'traffic':.6,'rain':0}
- assert status()['sources']==2,'Only one pair of loops across both display windows'
+  assert status()['targets']=={'music':0,'traffic':.6,'rain':0}
+ assert status()['sources']==3,'Only one set of loops across both display windows'
  for output in outputs.values():assert ev('typeof window.SceneAudio',output['session'])=='undefined'
  ev('Installation.playback.pause(true);Installation.advance(Date.now()+40)')
  L.wait_for(lambda:rms()<.00001)
- assert status()['targets']=={'traffic':0,'rain':0}
+ assert status()['targets']=={'music':0,'traffic':0,'rain':0}
  ev('Installation.playback.pause(false);Installation.advance(Date.now()+80)')
  L.wait_for(lambda:rms()>.0001)
- at('youtube','read');L.wait_for(lambda:rms()<.00001)
- assert status()['targets']=={'traffic':0,'rain':0}
+ at('youtube','read');L.wait_for(lambda:status()['targets']['music']==.42 and rms()>.0001)
+ assert status()['targets']=={'music':.42,'traffic':0,'rain':0}
+ assert ev("document.getElementById('source-video').volume")==0
+ assert ev("document.getElementById('source-video').muted") is True
  assert not status()['error']
- print('PASS: actual decoded traffic/rain output, unattended autoplay, visible rain timing, indoor fade, pause/resume, single host mix for two displays.',flush=True)
+ print('PASS: actual decoded indoor music and traffic/rain output, unattended autoplay, visible rain timing, indoor fade and music-only muted video, pause/resume, single host mix for two displays.',flush=True)
 finally:
  if cdp:
   try:cdp.call('Browser.close')

@@ -15,6 +15,13 @@
   });
   DeviceScreen.setVideo(document.getElementById('source-video'));
   SceneAudio.unlock();
+  function foregroundAudio(cue){
+    if(!cue||cue.phone.paused)return false;
+    const view={...cue.phone,instance:cue.instance};
+    if(PhoneMessages.project(phoneState,view).open)return false;
+    if(view.mode==='game')return !!session&&session.state.stage!=='entry';
+    return false;
+  }
   const token=new URLSearchParams(location.search).get('run')||'';
   let lastPublish=0,publishing=false,lastDraw=-Infinity;
   async function publish(force=false){
@@ -34,7 +41,7 @@
   window.Installation={
     sizes,engine:SceneGame,playback,pxPerMM:96/25.4,placementReady:false,error:null,
     // Both display windows request frames; compose the shared pixel scene once.
-    advance(now){if(now-lastDraw>=1000/30-1){lastDraw=now;playback.advance(now);SceneAudio.update(playback.status.current,playback.status.paused||!playback.started);}publish();},publish,
+    advance(now){if(now-lastDraw>=1000/30-1){lastDraw=now;playback.advance(now);SceneAudio.update(playback.status.current,playback.status.paused||!playback.started,foregroundAudio(playback.status.current));}publish();},publish,
     rect(id){const [w,h]=sizes[id];return {...regions[id],w:w*240/500,h:h*240/500};},
     paintCaption(canvas,id){
       const cue=playback.status.current;
