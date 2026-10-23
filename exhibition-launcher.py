@@ -480,11 +480,8 @@ def main():
 
 
 def show_error(message):
-    if os.name == "nt":
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(None, message, "전시 화면 실행", 0x10)
-    else:
-        print(message)
+    # Audience displays must never receive diagnostic dialogs.
+    logging.getLogger('exhibition').error('%s', message)
 
 
 if __name__ == "__main__":

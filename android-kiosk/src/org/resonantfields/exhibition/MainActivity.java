@@ -247,6 +247,7 @@ public class MainActivity extends Activity {
     }
     private void showConnection(){
         if(offline==null||web==null)return;
+        android.util.Log.w("ExhibitionConnection",networkProblem);
         connectionText.setText(networkProblem+"\n\nPC 주소: "+Uri.parse(endpoint).getHost()+"\n자동으로 재연결을 시도하고 있습니다.");
         offline.setVisibility(View.VISIBLE);
     }
@@ -289,7 +290,11 @@ public class MainActivity extends Activity {
         Button retryButton=new Button(this);retryButton.setText("다시 연결");panel.addView(retryButton);
         retryButton.setOnClickListener(v->{if(web!=null){networkProblem="다시 연결하는 중";showConnection();web.loadUrl(endpoint);}});
         Button address=new Button(this);address.setText("PC 주소 설정");panel.addView(address);address.setOnClickListener(v->editAddress());
-        offline=panel;root.addView(offline,new FrameLayout.LayoutParams(-1,-1));showConnection();web.loadUrl(endpoint);immersive();
+        // Diagnostic UI requires an explicit operator launch flag.
+        FrameLayout cover=new FrameLayout(this);cover.setBackgroundColor(Color.rgb(16,19,24));
+        panel.setVisibility(View.GONE);cover.addView(panel,new FrameLayout.LayoutParams(-1,-1));
+        if(getIntent().getBooleanExtra("diagnostics",false))panel.setVisibility(View.VISIBLE);
+        offline=cover;root.addView(offline,new FrameLayout.LayoutParams(-1,-1));showConnection();web.loadUrl(endpoint);immersive();
         handler.removeCallbacks(observeMessages);handler.post(observeMessages);
     }
     private void immersive(){getWindow().getDecorView().setSystemUiVisibility(

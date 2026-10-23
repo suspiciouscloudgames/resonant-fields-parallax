@@ -63,7 +63,7 @@
   // Keep exhibition output free of menus; H explicitly restores controls.
   document.addEventListener('mousemove',()=>{if(!exhibition&&!hidden)show();});
   function frame(){
-    const app=hub();error.hidden=!!app;
+    const app=hub();error.hidden=exhibition||!!app;
     if(app?.engine.ready){
       if(app.advance)app.advance(Date.now());else app.engine.advance(Date.now());
       // In exhibition fullscreen the known physical active area is the ruler.

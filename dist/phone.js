@@ -67,7 +67,7 @@
     const display=presentation.sample(board,pending?.view?.elapsed??current.elapsed,age,now,current.paused);
     const renderView={...current,elapsed:display.elapsed};
     input.update(board,live&&!messages.open&&!current.paused&&current.mode==='game');
-    button.hidden=!!document.fullscreenElement;connection.hidden=live;DeviceScreen.update(current);DeviceScreen.setGame(display.game);BlitzAudio.update({...renderView,paused:current.paused||messages.open||board?.stage==='entry'},board);
+    button.hidden=!!document.fullscreenElement;connection.hidden=true;DeviceScreen.update(current);DeviceScreen.setGame(display.game);BlitzAudio.update({...renderView,paused:current.paused||messages.open||board?.stage==='entry'},board);
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     const stillVideoUI=current.mode==='youtube'&&!messages.open,paintKey=stillVideoUI?[current.instance,w,h].join(':'):null;
     if(!stillVideoUI||videoCanvasKey!==paintKey)DeviceScreen.render(canvas,renderView,wall,{...input.visual,notificationsInDOM:true,seekControl:true,nativeVideo:true,hint:playable()&&now-lastInteraction>6000});

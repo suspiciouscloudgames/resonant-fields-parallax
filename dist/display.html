@@ -5,7 +5,7 @@
 body.exhibition{touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none}body.exhibition #controls,body.exhibition #error a{display:none}#exit-menu{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:#0008;cursor:default}#exit-menu[hidden]{display:none}#exit-game{font-size:20px;padding:18px 32px;background:#333;color:#fff;cursor:pointer}body.exhibition #screen{pointer-events:none}
 /* Cover the root, blank margins, text and overlays, including before display.js loads. */
 html.exhibition-output,html.exhibition-output *{cursor:none!important}
-html.exhibition-output #controls{display:none}
+html.exhibition-output #controls,html.exhibition-output #error{display:none!important}
 html.exhibition-output.operator-exit-open #exit-menu,html.exhibition-output.operator-exit-open #exit-menu *{cursor:default!important}
 html.exhibition-output.operator-exit-open #exit-game{cursor:pointer!important}
 </style></head><body>
