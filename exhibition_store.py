@@ -1,5 +1,6 @@
 """Durable local message history and replayable events owned by the dual-display PC."""
 import json
+import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
@@ -76,16 +77,20 @@ class ExhibitionStore:
     def display_time(self,row):
         # Arrival time remains real for notification expiry, vibration and event replay.
         if not row['is_preset'] and row['scene_number']==6:return row['received_at']
+        group=0 if row['is_preset'] else max(1,min(5,row['scene_number']))
         if row['is_preset']:
             ordinal=int(row['delivery_key'].split(':')[-1])
         else:
-            delivered=self.db.execute('SELECT COUNT(*) FROM messages WHERE is_preset=0 AND delivery_key IS NOT NULL AND scene_number!=6 AND id<=?',(row['id'],)).fetchone()[0]
-            ordinal=len(PRESET_MESSAGES)+max(0,delivered-1)
-        weeks=max(1,self.history_count-ordinal)
+            ordinal=self.db.execute('SELECT COUNT(*) FROM messages WHERE is_preset=0 AND scene_instance=? AND id<?',(row['scene_instance'],row['id'])).fetchone()[0]
         anchor=datetime.fromtimestamp(self.meta('messageDateAnchor')/1000,KOREA)
-        # Stable afternoon times, 13:00 through 15:59, unaffected by refresh/restart.
-        minute=(ordinal*37+17)%180
-        stamp=(anchor-timedelta(weeks=weeks)).replace(hour=13+minute//60,minute=minute%60,second=0,microsecond=0)
+        # One historical day per scene; distinct randomized weekdays stay stable on refresh/restart.
+        rng=random.Random(anchor.date().isoformat())
+        weekdays=rng.sample(range(7),6)
+        minutes=[rng.randrange(150) for _ in range(6)]
+        monday=anchor-timedelta(days=anchor.weekday())
+        day=monday-timedelta(weeks=6-group)+timedelta(days=weekdays[group])
+        minute=minutes[group]
+        stamp=day.replace(hour=13+minute//60,minute=minute%60,second=0,microsecond=0)+timedelta(seconds=min(ordinal,59)*20)
         return int(stamp.timestamp()*1000)
     def item(self,row):
         if row is None:return None

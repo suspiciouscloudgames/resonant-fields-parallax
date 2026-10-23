@@ -21,7 +21,7 @@ v0.3.17 · 사용자 제공 원고를 그대로 사용합니다. `(본인)`은 �
 사전 대화: [exhibition_store.py](exhibition_store.py)의 `PRESET_MESSAGES`.
 씬 타이밍: [dist/exhibition-playback.js](dist/exhibition-playback.js).
 
-이전 문자들의 표시 날짜는 본인 발신을 포함해 한 통마다 일주일 간격으로 이어집니다. 관객이 직접 입력한 답장은 새 주간 슬롯을 추가하지 않습니다. 마지막 씬은 실제 도착 시각입니다. `receivedAt`은 항상 실제 수신/발신 시각이고 `displayAt`만 이야기 속 날짜입니다.
+사전 대화와 1~5씬의 표시 날짜는 서로 다른 요일로 무작위 배정하며, 과거에서 현재로 시간 순서를 유지합니다. 같은 씬의 본인 발신과 관객 답장도 같은 날 오후로 묶습니다. 같은 전시 날짜에는 새로고침·재시작·루프 반복에도 배정이 유지됩니다. 마지막 씬은 실제 도착 시각입니다. `receivedAt`은 항상 실제 수신/발신 시각이고 `displayAt`만 이야기 속 날짜입니다.
 
 외부 연동에서 각본상 본인 발신은 `message.replied` + `payload.message.scripted=true`로 구분할 수 있습니다. 관객이 직접 입력한 답장은 `scripted=false`입니다. 씬당 확인 신호는 계속 `message.read`만 사용합니다.
 

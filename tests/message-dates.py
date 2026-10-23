@@ -21,11 +21,15 @@ with tempfile.TemporaryDirectory() as folder:
    else:history.append(item)
  stamps=[datetime.fromtimestamp(m['displayAt']/1000,KOREA) for m in history]
  assert all(13<=d.hour<16 for d in stamps)
- assert all((b.date()-a.date()).days==7 for a,b in zip(stamps,stamps[1:]))
- assert stamps[-1].date()==datetime.fromtimestamp(now/1000,KOREA).date()-timedelta(days=7)
+ assert all(b>=a for a,b in zip(stamps,stamps[1:]))
+ groups={}
+ for m,d in zip(history,stamps):groups.setdefault(m['sceneNumber'],[]).append(d)
+ assert all(len({d.date() for d in rows})==1 for rows in groups.values())
+ assert len({rows[0].weekday() for rows in groups.values()})==6
+ assert all(d.date()<datetime.fromtimestamp(now/1000,KOREA).date() for d in stamps)
  saved=store.messages();store.close();store=ExhibitionStore(path)
  assert store.messages()==saved
  assert store.conversations()[1]['latest']['displayAt']==store.conversations()[1]['latest']['receivedAt']
  assert store.messages(limit=4)['items']==saved['items'][-4:]
  store.close()
-print('PASS: weekly historical dates, afternoon range, live final-scene timestamps, real arrivals, restart and pagination.')
+print('PASS: distinct randomized scene weekdays and grouped historical dates, afternoon range, live final-scene timestamps, real arrivals, restart and pagination.')
