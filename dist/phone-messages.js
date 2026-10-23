@@ -1,7 +1,7 @@
 /* Two local exhibition conversations, synchronized with the character's handset. */
 window.PhoneMessages=(()=>{
   const contacts=[{id:'daughter',title:'딸'},{id:'neighbor',title:'저장되지 않은 번호'}];
-  const presets=[{text:'밥은 챙겨 드셨어요?',incoming:true},{text:'응, 방금 먹었어.',incoming:false},{text:'다음 주에 들를게요.',incoming:true},{text:'그래. 올 때 연락해.',incoming:false},{text:'네, 그때 봬요.',incoming:true}];
+  const presets=[{"text": "우리 아들 우리 아들 좀 하지 마세요.", "incoming": true}, {"text": "내가 어떻게 부르든말든", "incoming": false}, {"text": "우리 딸 한 적은 한 번도 없으면서.", "incoming": true}];
   const contact=id=>contacts.find(c=>c.id===id)||contacts[0];
   function project(data,view,now=Date.now()){
     const items=data?.messages||[],ui=data?.ui||{},same=data?.sceneInstance===view.instance;

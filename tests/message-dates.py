@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as folder:
   scene={'id':name,'index':index,'instance':name}
   for n,message in enumerate(schedule[name]):
    arrival=now+index*100000+n*1000
-   item=store.message(message['text'],True,scene,now=arrival)
+   item=store.message(message['text'],message.get('incoming',True),scene,key=name+':'+str(n),now=arrival)
    assert item['receivedAt']==arrival
    if name=='dog':assert item['displayAt']==arrival
    else:history.append(item)

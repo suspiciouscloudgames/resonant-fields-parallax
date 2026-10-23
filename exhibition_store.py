@@ -7,7 +7,7 @@ import time
 
 KOREA=timezone(timedelta(hours=9))
 CONVERSATIONS={'daughter':'딸','neighbor':'저장되지 않은 번호'}
-PRESET_MESSAGES=[('밥은 챙겨 드셨어요?',True),('응, 방금 먹었어.',False),('다음 주에 들를게요.',True),('그래. 올 때 연락해.',False),('네, 그때 봬요.',True)]
+PRESET_MESSAGES=[('우리 아들 우리 아들 좀 하지 마세요.', True), ('내가 어떻게 부르든말든', False), ('우리 딸 한 적은 한 번도 없으면서.', True)]
 
 class ExhibitionStore:
     def __init__(self,path=None):
@@ -34,11 +34,12 @@ class ExhibitionStore:
             for i,(text,incoming) in enumerate(PRESET_MESSAGES):
                 self.db.execute('INSERT OR IGNORE INTO messages(delivery_key,text,received_at,incoming,scene_id,scene_number,scene_instance,is_preset) VALUES(?,?,?,?,?,?,?,1)',
                     ('preset:'+str(i),text,int((afternoon+timedelta(minutes=i*7)).timestamp()*1000),int(incoming),'preset',0,'preset'))
-        if self.meta('presetConversationVersion')!=1:
+        if self.meta('presetConversationVersion')!=2:
             with self.db:
+                self.db.execute("DELETE FROM messages WHERE is_preset=1 AND delivery_key NOT IN ("+",".join("?" for _ in PRESET_MESSAGES)+")",tuple('preset:'+str(i) for i in range(len(PRESET_MESSAGES))))
                 for i,(text,incoming) in enumerate(PRESET_MESSAGES):
                     self.db.execute("UPDATE messages SET text=?,incoming=?,conversation_id='daughter' WHERE delivery_key=? AND is_preset=1",(text,int(incoming),'preset:'+str(i)))
-                self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',('presetConversationVersion','1'))
+                self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',('presetConversationVersion','2'))
         self.db.commit()
         if self.meta('messageDateAnchor') is None:self.set_meta('messageDateAnchor',int(time.time()*1000))
     def begin_loop(self,loop_id,scene,now=None):
@@ -50,7 +51,7 @@ class ExhibitionStore:
             for key,value in [('messageDateAnchor',now),('loopId',loop_id),('readThrough',read_through),('readThroughByConversation',{'daughter':read_through,'neighbor':0})]:
                 self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',(key,json.dumps(value)))
             self.db.execute('INSERT OR IGNORE INTO events(event_key,type,occurred_at,payload) VALUES(?,?,?,?)',
-                ('loop:'+loop_id+':messages.reset','messages.reset',now,json.dumps({'loopId':loop_id,'presetCount':5,'scene':self.scene(scene)},ensure_ascii=False)))
+                ('loop:'+loop_id+':messages.reset','messages.reset',now,json.dumps({'loopId':loop_id,'presetCount':len(PRESET_MESSAGES),'scene':self.scene(scene)},ensure_ascii=False)))
         return True
     def emit(self,event_type,payload,key=None,now=None):
         now=int(now if now is not None else time.time()*1000)
@@ -78,7 +79,7 @@ class ExhibitionStore:
         if row['is_preset']:
             ordinal=int(row['delivery_key'].split(':')[-1])
         else:
-            delivered=self.db.execute('SELECT COUNT(*) FROM messages WHERE is_preset=0 AND incoming=1 AND scene_number!=6 AND id<=?',(row['id'],)).fetchone()[0]
+            delivered=self.db.execute('SELECT COUNT(*) FROM messages WHERE is_preset=0 AND delivery_key IS NOT NULL AND scene_number!=6 AND id<=?',(row['id'],)).fetchone()[0]
             ordinal=len(PRESET_MESSAGES)+max(0,delivered-1)
         weeks=max(1,self.history_count-ordinal)
         anchor=datetime.fromtimestamp(self.meta('messageDateAnchor')/1000,KOREA)
@@ -89,7 +90,7 @@ class ExhibitionStore:
     def item(self,row):
         if row is None:return None
         contact=CONVERSATIONS[row['conversation_id']]
-        return {'id':row['id'],'text':row['text'],'receivedAt':row['received_at'],'displayAt':self.display_time(row),'incoming':bool(row['incoming']),'sceneId':row['scene_id'],'sceneNumber':row['scene_number'],'sceneInstance':row['scene_instance'],'preset':bool(row['is_preset']),'conversationId':row['conversation_id'],'sender':contact if row['incoming'] else '나','contactName':contact}
+        return {'id':row['id'],'text':row['text'],'receivedAt':row['received_at'],'displayAt':self.display_time(row),'incoming':bool(row['incoming']),'sceneId':row['scene_id'],'sceneNumber':row['scene_number'],'sceneInstance':row['scene_instance'],'preset':bool(row['is_preset']),'scripted':bool(row['delivery_key']) and not bool(row['is_preset']),'conversationId':row['conversation_id'],'sender':contact if row['incoming'] else '나','contactName':contact}
     def messages(self,before=None,limit=100,conversation_id=None):
         if conversation_id is not None and conversation_id not in CONVERSATIONS:raise ValueError('Unknown conversation')
         where='1=1' if conversation_id is None else 'conversation_id=?'

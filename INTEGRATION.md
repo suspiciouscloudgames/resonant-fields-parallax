@@ -67,4 +67,6 @@ HTTPS 페이지에서 HTTP LAN 서버 연결은 브라우저 정책에 막힐 �
 
 `message.received`는 문자마다 발생하고 `phone.screen.changed`는 화면 조작마다 발생하므로 씬당 신호로 쓰지 마세요.
 `occurredAt`과 `receivedAt`은 실제 시간이며, `displayAt`은 메시지 UI에 보이는 이야기 속 날짜입니다.
-처음 다섯 사전 문자와 1~5씬 문자는 일주일 간격의 오후 1~4시 이전 기록으로 보이고, 마지막 씬은 실제 도착 시각입니다.
+처음 세 사전 문자와 1~5씬 문자는 일주일 간격의 오후 1~4시 이전 기록으로 보이고, 마지막 씬은 실제 도착 시각입니다.
+
+각본상 본인 발신은 `message.replied` + `payload.message.scripted=true`입니다. 수신 신호로 사용하지 마세요. 새 원고와 시간표는 [MESSAGE-TIMING.md](MESSAGE-TIMING.md)를 참고하세요.

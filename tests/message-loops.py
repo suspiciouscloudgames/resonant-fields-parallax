@@ -7,13 +7,17 @@ with tempfile.TemporaryDirectory() as directory:
  path=Path(directory)/'messages.sqlite3'
  # Upgrade an existing pre-reset inbox, with the original table schema.
  db=sqlite3.connect(str(path));db.executescript('''CREATE TABLE messages(id INTEGER PRIMARY KEY AUTOINCREMENT, delivery_key TEXT UNIQUE, text TEXT NOT NULL, received_at INTEGER NOT NULL, incoming INTEGER NOT NULL, scene_id TEXT, scene_number INTEGER, scene_instance TEXT);INSERT INTO messages(text,received_at,incoming) VALUES('old loop',1,1);''');db.close()
+ # Simulate the deployed five-preset v1 database before migrating this edition.
+ db=sqlite3.connect(str(path));db.execute('ALTER TABLE messages ADD COLUMN is_preset INTEGER NOT NULL DEFAULT 0')
+ for i in range(5):db.execute('INSERT INTO messages(delivery_key,text,received_at,incoming,is_preset) VALUES(?,?,?,?,1)',('preset:'+str(i),'old preset',int(time.time()*1000),1))
+ db.commit();db.close()
  store=ExhibitionStore(path);scene={'id':'smoking','index':0,'instance':'run:0','cycle':0}
  assert store.begin_loop('run:0',scene)
- presets=store.messages()['items'];assert len(presets)==5
+ presets=store.messages()['items'];assert len(presets)==3
  for m in presets:
   stamp=datetime.datetime.fromtimestamp(m['receivedAt']/1000)
   assert m['preset'] and m['conversationId']=='daughter'
-  assert stamp.date()==datetime.datetime.now().date()-datetime.timedelta(days=7) and stamp.hour==14
+  assert isinstance(m['displayAt'],int)
  assert [(m['text'],m['incoming']) for m in presets]==PRESET_MESSAGES
  assert not any(e['type']=='message.received' for e in store.events())
  for i in range(6):
@@ -23,12 +27,12 @@ with tempfile.TemporaryDirectory() as directory:
   assert item['sender']==('저장되지 않은 번호' if i==5 else '딸')
   assert store.message('duplicate',True,scene,key=scene['instance']) is None
  store.message('관객 답장',False,scene)
- assert store.messages()['total']==12
- assert store.messages(conversation_id='daughter')['total']==10
+ assert store.messages()['total']==10
+ assert store.messages(conversation_id='daughter')['total']==8
  assert store.messages(conversation_id='neighbor')['total']==2
  assert not store.begin_loop('run:0',scene)
  store.close();store=ExhibitionStore(path)
- assert store.messages()['total']==12 and not store.begin_loop('run:0',scene)
+ assert store.messages()['total']==10 and not store.begin_loop('run:0',scene)
  # Repeated starts of the same cycle don't erase messages; the next cycle does.
  scene={'id':'smoking','index':0,'instance':'run:6','cycle':1}
  assert store.begin_loop('run:1',scene)
@@ -38,12 +42,12 @@ with tempfile.TemporaryDirectory() as directory:
  assert store.meta('readThrough')==presets[-1]['id']
  first=store.message('1씬 테스트',True,scene,key=scene['instance'])
  assert first['id']>presets[-1]['id'] and not first['preset']
- assert store.messages()['total']==6
+ assert store.messages()['total']==4
  # Older pages belong to a loop, preventing a late request from reviving cleared messages.
  for i in range(110):store.message('답장 '+str(i),False,scene)
  page=store.messages();assert page['hasMore'] and page['loopId']=='run:1'
- assert store.messages(before=page['items'][0]['id'])['items'][:5]==presets
+ assert store.messages(before=page['items'][0]['id'])['items'][:3]==presets
  store.begin_loop('new-run:0',{'id':'smoking','index':0,'instance':'new-run:0','cycle':0})
  assert store.messages()['items']==presets and not store.messages()['hasMore']
  store.close()
-print('PASS: old database migration, five fixed week-old afternoon presets, same-loop restart persistence, scene/reply reset per loop, durable event replay and loop-scoped pagination.')
+print('PASS: old database migration, three migrated presets, same-loop restart persistence, scene/reply reset per loop, durable event replay and loop-scoped pagination.')

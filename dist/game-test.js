@@ -1,7 +1,7 @@
 /* Game-only rehearsal: same rules, artwork and audio as the exhibition phone. */
 (()=>{
   const afternoon=new Date();afternoon.setDate(afternoon.getDate()-7);afternoon.setHours(14,0,0,0);
-  const local={loopId:'rehearsal',sceneInstance:'rehearsal',ui:{open:false,conversationId:null,revision:0,readThroughByConversation:{daughter:5,neighbor:0},dismissed:0},messages:PhoneMessages.presets.map((item,i)=>({...item,id:i+1,preset:true,conversationId:'daughter',sender:item.incoming?'딸':'나',receivedAt:afternoon.getTime()+i*420000,sceneInstance:'preset'})),total:5};
+  const local={loopId:'rehearsal',sceneInstance:'rehearsal',ui:{open:false,conversationId:null,revision:0,readThroughByConversation:{daughter:PhoneMessages.presets.length,neighbor:0},dismissed:0},messages:PhoneMessages.presets.map((item,i)=>({...item,id:i+1,preset:true,conversationId:'daughter',sender:item.incoming?'딸':'나',receivedAt:afternoon.getTime()+i*420000,sceneInstance:'preset'})),total:PhoneMessages.presets.length};
   let delivered=false;
   const messages=PhoneMessages.create({action(type,text,conversationId){
     local.ui.revision++;
@@ -22,7 +22,7 @@
     elapsed=started?now-started:0;
     const snapshot=engine.advance(elapsed),transition=snapshot.transition;round=snapshot.roundNumber;entry=snapshot.stage==='entry';
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-    if(elapsed>=95000&&!delivered){delivered=true;local.messages.push({id:local.messages.length+1,text:'5씬 테스트',incoming:true,conversationId:'daughter',sender:'딸',receivedAt:Date.now(),sceneInstance:'rehearsal'});local.total=local.messages.length;local.ui.revision++;}
+    if(elapsed>=95000&&!delivered){delivered=true;local.messages.push({id:local.messages.length+1,text:'골드 얼마나 모았어? 저번에 내가 다 지워버려서 미안해.',incoming:true,conversationId:'daughter',sender:'딸',receivedAt:Date.now(),sceneInstance:'rehearsal'});local.total=local.messages.length;local.ui.revision++;}
     if(snapshot.complete){local.ui.open=false;}
     const view={mode:snapshot.complete?'clock':'game',elapsed:snapshot.elapsed,round:snapshot.round,instance:'rehearsal'};
     messages.update(local,view);

@@ -106,7 +106,7 @@ def run(screen_info, screenshot=False):
         })()""")
         assert all(p["actual"] == p["expected"] and abs(p["elapsed"] - p["want"]) < .01 for p in phases), phases
         print("Verified all", len(phases), "action/transition phases", flush=True)
-        starts = [0,50000,165000,265000,460000,650000]
+        starts = cdp.evaluate(hub,"Installation.playback.cues.map((c,i,a)=>a.slice(0,i).reduce((n,c)=>n+c.duration,0))")
         for index in range(6):
             t = starts[index] + 1000
             cdp.evaluate(hub, "Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)" % (t, t))
@@ -122,15 +122,16 @@ def run(screen_info, screenshot=False):
                   const actual=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
                   const plain=raw.getContext('2d').getImageData(0,0,c.width,c.height).data;
                   let different=0;for(let i=0;i<actual.length;i++)if(actual[i]!==plain[i])different++;
-                  const layout=opener.SceneCaptions.layout(id,c.width,c.height);
+                  const text=opener.SceneCaptions.sample(app.playback.status.current).text;
+                  const layout=opener.SceneCaptions.layout(id,c.width,c.height,text);
                   const pixels=layout.canvas.getContext('2d').getImageData(0,0,layout.w,layout.h).data;
                   let letters=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]>180&&pixels[i+1]>180)letters++;
-                  return {different,letters,text:opener.SceneCaptions.text,inside:layout.x>=0&&layout.y>=0&&layout.x+layout.w<=c.width&&layout.y+layout.h<=c.height};
+                  return {different,letters,text,inside:layout.x>=0&&layout.y>=0&&layout.x+layout.w<=c.width&&layout.y+layout.h<=c.height};
                 })()""")
                 active = name == cue["captionScreen"]
                 assert caption["different"] > 1000 if active else caption["different"] == 0, (index, name, caption)
                 assert caption["inside"] and caption["letters"] > 100
-                assert caption["text"] == "테스트"
+                assert caption["text"] == cdp.evaluate(hub,"SceneCaptions.sample(Installation.playback.status.current).text")
                 if screenshot and active:
                     data = cdp.call("Page.captureScreenshot", {"format": "png"}, session)
                     (ROOT / "output/exhibition-validation" / ("autoplay-%d-%s.png" % (index+1,name))).write_bytes(base64.b64decode(data["data"]))
@@ -146,12 +147,12 @@ def run(screen_info, screenshot=False):
         launcher.wait_for(lambda: cdp.evaluate(phone_session, '!!window.PhoneView?.connected'))
         assert cdp.evaluate(phone_session, 'window.opener===null'), 'Phone must sync independently over HTTP'
         cdp.call('Emulation.setDeviceMetricsOverride',{'width':390,'height':844,'deviceScaleFactor':1,'mobile':True},phone_session)
-        checks=[(10000,'clock'),(51000,'clock'),(166000,'clock'),(180000,'youtube'),(264500,'clock'),(280000,'clock'),(461000,'clock'),(475000,'game'),(649000,'clock'),(700000,'clock'),(935000,'clock')]
+        checks=[(10000,'clock'),(46000,'clock'),(161000,'clock'),(180000,'youtube'),(259500,'clock'),(280000,'clock'),(446000,'clock'),(460000,'game'),(634000,'clock'),(700000,'clock'),(960000,'clock')]
         for t,mode in checks:
             cdp.evaluate(hub, 'Installation.playback.start(0);Installation.playback.advance(%d);Installation.playback.pause(true,%d)' % (t,t))
             def synced():
                 cdp.evaluate(hub, 'Installation.publish(true)')
-                return cdp.evaluate(phone_session, 'PhoneView.state.mode===%s && Math.abs(PhoneView.state.elapsed-%d)<1' % (json.dumps(mode), (t-166800 if mode=='youtube' else t-461800 if mode=='game' else 0)))
+                return cdp.evaluate(phone_session, 'PhoneView.state.mode===%s && Math.abs(PhoneView.state.elapsed-%d)<1' % (json.dumps(mode), (t-161800 if mode=='youtube' else t-446800 if mode=='game' else 0)))
             launcher.wait_for(synced,timeout=10)
             assert cdp.evaluate(hub,'DeviceScreen.state.mode')==mode
             if mode=='game':
@@ -168,7 +169,7 @@ def run(screen_info, screenshot=False):
                 (ROOT/'output/exhibition-validation'/('indoor-'+mode+'.png')).write_bytes(base64.b64decode(shot['data']))
         # While running, the independent phone should remain close to the host clock.
         # Set a deterministic resumed clock rather than jumping from epoch zero.
-        cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-475000);p.advance(n)})()')
+        cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-460000);p.advance(n)})()')
         time.sleep(1)
         host_time=cdp.evaluate(hub,'Installation.playback.status.current.phone.elapsed')
         phone_time=cdp.evaluate(phone_session,'PhoneView.state.elapsed')
@@ -225,9 +226,9 @@ def run(screen_info, screenshot=False):
                 shot=cdp.call('Page.captureScreenshot',{'format':'png'},session)
                 (ROOT/'output/exhibition-validation'/(name+'.png')).write_bytes(base64.b64decode(shot['data']))
             old_round=cdp.evaluate(phone_session,'PhoneView.state.round')
-            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-649000);p.advance(n)})()')
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-634000);p.advance(n)})()')
             launcher.wait_for(lambda: cdp.evaluate(phone_session,"PhoneView.state.mode==='clock'&&!PhoneView.playable&&!BlitzAudio.status.playing"))
-            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-475000);p.advance(n)})()')
+            cdp.evaluate(hub,'(()=>{const p=Installation.playback,n=Date.now();p.start(n-460000);p.advance(n)})()')
             launcher.wait_for(lambda: cdp.evaluate(phone_session,'PhoneView.playable && PhoneView.game.score===0'))
             assert cdp.evaluate(phone_session,'PhoneView.state.round')!=old_round
             print('PASS: touch swaps, swipes, score/cascade reflection on character, inert menus, original audio decode/play, pause, cutoff and new-round reset',flush=True)

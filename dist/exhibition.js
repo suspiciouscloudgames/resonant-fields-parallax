@@ -38,7 +38,7 @@
     rect(id){const [w,h]=sizes[id];return {...regions[id],w:w*240/500,h:h*240/500};},
     paintCaption(canvas,id){
       const cue=playback.status.current;
-      SceneCaptions.paint(canvas,id,{...SceneGame.status,captionScreen:cue?.captionScreen,captionVisible:cue?.captionVisible});
+      SceneCaptions.paint(canvas,id,{...SceneGame.status,cue,captionScreen:cue?.captionScreen,captionVisible:!!cue});
     },
   };
   // An exported placement can travel on the USB alongside the artwork.

@@ -23,7 +23,7 @@ try:
   assert item['sender']==('저장되지 않은 번호' if i==5 else '딸')
   assert [c['id'] for c in state['conversations']]==(['daughter','neighbor'] if i==5 else ['daughter'])
   if i==5:assert state['conversations'][1]['total']==1
-  assert publish(i)[1]['phoneState']['total']==6+i
+  assert publish(i)[1]['phoneState']['total']==4+i
  publish(5,locked=True)
  assert action('open','neighbor')[0]==409
  publish(5)
@@ -47,13 +47,13 @@ try:
  assert [m['text'] for m in page['items']]==[server.scene_messages['dog'][0]['text'],'이웃에게 답장']
  assert all(m['conversationId']=='neighbor' for m in page['items'])
  _,page=request('/api/messages?key=conversations-test&conversationId=daughter')
- assert page['total']==11 and page['items'][-1]['text']=='딸에게 답장'
+ assert page['total']==9 and page['items'][-1]['text']=='딸에게 답장'
  assert request('/api/messages?key=conversations-test&conversationId=invalid')[0]==400
  publish(0,1,elapsed=0);action('open','daughter')
  assert len([e for e in server.store.events() if e['type']=='message.read'])==1
  publish(0,1);state=request('/api/state?key=conversations-test')[1]['phoneState']
- assert state['total']==6 and [c['id'] for c in state['conversations']]==['daughter']
- assert [m['incoming'] for m in state['messages'][:5]]==[True,False,True,False,True]
+ assert state['total']==4 and [c['id'] for c in state['conversations']]==['daughter']
+ assert [m['incoming'] for m in state['messages'][:3]]==[True,False,True]
  action('open','daughter');action('open','daughter')
  assert len([e for e in server.store.events() if e['type']=='message.read'])==2
  events=request('/api/events?key=conversations-test')[1]['events'];incoming=[e for e in events if e['type']=='message.received'];assert len(incoming)==7

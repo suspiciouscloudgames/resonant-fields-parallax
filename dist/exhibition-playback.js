@@ -1,12 +1,12 @@
 /* The dual-display controller owns the sequence. Phones follow published cues. */
 window.ExhibitionPlayback=(()=>{
   const definitions=[
-    {id:'smoking',label:'흡연',side:'indoor',number:1,duration:50000,messageAt:12000},
-    {id:'rain',label:'비',side:'outdoor',number:3,duration:115000,outsideDuration:40000,messageAt:40000},
+    {id:'smoking',label:'흡연',side:'indoor',number:1,duration:45000,messageAt:12000},
+    {id:'rain',label:'비',side:'outdoor',number:3,duration:115000,outsideDuration:42000,messageAt:40000},
     {id:'youtube',label:'유튜브',side:'indoor',number:2,duration:100000},
-    {id:'police',label:'경찰차',side:'outdoor',number:1,duration:195000,outsideDuration:40000,messageAt:40000},
+    {id:'police',label:'경찰차',side:'outdoor',number:1,duration:185000,outsideDuration:28000,messageAt:40000},
     {id:'game',label:'게임',side:'indoor',number:3,duration:190000,messageAt:24000},
-    {id:'dog',label:'들개',side:'outdoor',number:2,duration:285000,outsideDuration:145000,messageAt:42000},
+    {id:'dog',label:'들개',side:'outdoor',number:2,duration:325000,outsideDuration:184000,messageAt:42000},
   ];
   function cueAt(cue,index,step,within,time,sceneStart){
     let phaseTime=within,phase=cue.phases[0];
@@ -15,7 +15,7 @@ window.ExhibitionPlayback=(()=>{
     const mode=sceneLock?'clock':phase.state==='gaming'?'game':phase.state==='read'&&cue.id==='youtube'?'youtube':'clock';
     return {...cue,index,step,elapsed:within,clipTime:within,clock:time,sceneStart,
       phase:phase.state,phaseTime,phaseRemaining:Math.max(0,phase.duration-phaseTime),
-      captionScreen:cue.side==='indoor'?'landscape':'portrait',captionVisible:within<5000,
+      captionScreen:cue.side==='indoor'?'landscape':'portrait',captionVisible:true,
       messageAt:cue.messageAt??20000,
       phone:{mode,sceneLock,...(sceneLock?{sleepElapsed:within}:{}),elapsed:mode==='clock'?0:phaseTime,remaining:mode==='game'?Math.max(0,60000-phaseTime):0}};
   }

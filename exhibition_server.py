@@ -107,7 +107,7 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         deliveries=self.scene_messages.get(c['id'],[{'id':'midpoint','at':c['messageAt'],'text':str(c['index']+1)+'씬 테스트'}])
         for delivery in deliveries:
             if c['elapsed']<delivery['at']:continue
-            item=self.store.message(delivery['text'],True,c,key=c['instance']+':'+delivery['id'],now=now,conversation_id=delivery.get('conversationId'))
+            item=self.store.message(delivery['text'],delivery.get('incoming',True),c,key=c['instance']+':'+delivery['id'],now=now,conversation_id=delivery.get('conversationId'))
             if item:
                 self.ui['revision']+=1
                 if self.ui['open'] and self.ui['conversationId']==item['conversationId']:self.read_conversation(item['conversationId'])
@@ -172,7 +172,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 with self.server.state_lock:history=self.server.store.messages(before=before,conversation_id=conversation)
                 return self.reply(history)
             if parsed.path == '/api/info':
-                return self.reply({'phoneUrl':self.server.phone_url,'eventSource':'dual-display','eventSchemaVersion':1,'eventStream':'/api/events/stream','nominalLoopMs':sum(c['duration'] for c in (self.server.state or {}).get('cues',[]) if 'duration' in c) or 975000})
+                return self.reply({'phoneUrl':self.server.phone_url,'eventSource':'dual-display','eventSchemaVersion':1,'eventStream':'/api/events/stream','nominalLoopMs':sum(c['duration'] for c in (self.server.state or {}).get('cues',[]) if 'duration' in c) or 960000})
             if parsed.path != '/api/state':
                 return self.reply({'error': 'Not found'}, 404)
             with self.server.state_lock:

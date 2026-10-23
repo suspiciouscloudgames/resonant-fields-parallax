@@ -49,7 +49,7 @@
     }
   },
   "crossOrigin": "Pass --event-origin https://exact-consumer-origin to the launcher. No destination is enabled by default.",
-  "inbox": "Two conversations: daughter and neighbor (displayed as an unsaved number). Five exchanged daughter presets plus current-loop messages. messages.reset clears transient messages/replies in both conversations; event replay remains durable.",
+  "inbox": "Two conversations: daughter and neighbor. Three exchanged daughter presets plus current-loop scripted messages and visitor replies. messages.reset clears transient messages/replies; event replay remains durable.",
   "conversations": {
     "daughter": {
       "displayName": "딸",
@@ -60,7 +60,7 @@
         4,
         5
       ],
-      "presetMessageCount": 5
+      "presetMessageCount": 3
     },
     "neighbor": {
       "displayName": "저장되지 않은 번호",
@@ -102,5 +102,6 @@
       "conversationId": "daughter",
       "trigger": "conversation.visible"
     }
-  }
+  },
+  "scriptedOutgoing": "Scripted owner messages have incoming=false, sender=나, scripted=true and emit message.replied. Visitor replies have scripted=false. Neither causes incoming notifications or vibration."
 }
