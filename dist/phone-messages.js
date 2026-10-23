@@ -31,6 +31,8 @@ window.PhoneMessages=(()=>{
     const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';locks.append(lock);
     let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
     const shownAt=item=>item.displayAt??item.receivedAt;
+    const threadStamp=time=>'('+new Date(time).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',weekday:'long'})+') '+new Date(time).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
+    const dayKey=time=>new Date(time).toLocaleDateString('en-CA',{timeZone:'Asia/Seoul'});
     const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
     function paint(){
       const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,view.sceneLock,state.banner,state.open,state.conversationId,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');
@@ -66,7 +68,7 @@ window.PhoneMessages=(()=>{
         previousOpen=state.open;
       }
       const all=[...new Map([...older,...state.threadItems].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=state.conversationId+':'+all.map(i=>i.id).join(',');
-      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(shownAt(item)).toISOString();time.textContent=stamp(shownAt(item),true);row.append(time,bubble);items.append(row);}thread.scrollTop=scroll;
+      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();let previousTime=null;for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(shownAt(item)).toISOString();time.textContent=threadStamp(shownAt(item));const at=shownAt(item);if(previousTime===null||dayKey(at)!==dayKey(previousTime)||at-previousTime>=300000){row.classList.add('pm-separated');row.append(time);}row.append(bubble);items.append(row);previousTime=at;}thread.scrollTop=scroll;
         if(!opened&&!changedThread&&nearEnd&&all.length>previousCount){const firstNew=items.children[previousCount];thread.scrollTop=firstNew.offsetTop-thread.offsetTop-16;}
       }
       if(opened||changedThread)thread.scrollTop=all.some(i=>i.text.length>120)?0:thread.scrollHeight;

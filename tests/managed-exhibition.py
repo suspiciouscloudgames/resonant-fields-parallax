@@ -1,5 +1,6 @@
 """Real child-process lifecycle, safe update extraction, rollback and mobile reload."""
 import hashlib
+import hmac
 import importlib.util
 import json
 import logging
@@ -95,12 +96,14 @@ def archives_and_pairing():
         discovery=Discovery(key,8770,port=0);port=discovery.socket.getsockname()[1];discovery.start()
         try:
             with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as client:
-                client.settimeout(.2);query={'service':'resonant-fields','key':'wrong','nonce':'test'}
+                client.settimeout(.2);query={'service':'resonant-fields','proof':'wrong','nonce':'test'}
                 client.sendto(json.dumps(query).encode(),('127.0.0.1',port))
                 try:client.recv(2048);raise AssertionError('Unpaired discovery accepted')
                 except socket.timeout:pass
-                query['key']=key;client.sendto(json.dumps(query).encode(),('127.0.0.1',port))
-                response=json.loads(client.recv(2048));assert response=={'service':'resonant-fields','nonce':'test','port':8770}
+                query['proof']=hmac.new(key.encode(),b'discover:test',hashlib.sha256).hexdigest()
+                packet=json.dumps(query).encode();assert key.encode() not in packet
+                client.sendto(packet,('127.0.0.1',port))
+                response=json.loads(client.recv(2048));assert response=={'service':'resonant-fields','nonce':'test','port':8770,'proof':hmac.new(key.encode(),b'reply:test:8770',hashlib.sha256).hexdigest()}
         finally:discovery.close()
         print('PASS: persistent pairing, paired LAN discovery, ZIP checksum and path protection')
 

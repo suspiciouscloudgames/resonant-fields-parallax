@@ -1,5 +1,7 @@
 """Paired LAN discovery; no pairing key is disclosed in responses."""
 import json
+import hmac
+import hashlib
 import secrets
 import socket
 import threading
@@ -20,10 +22,12 @@ class Discovery:
                 data,address=self.socket.recvfrom(2048)
                 request=json.loads(data.decode('utf-8'))
                 if request.get('service')!='resonant-fields':continue
-                key=request.get('key');nonce=request.get('nonce')
-                if not isinstance(key,str) or not secrets.compare_digest(key,self.key):continue
+                nonce=request.get('nonce');proof=request.get('proof')
                 if not isinstance(nonce,str) or not 1<=len(nonce)<=64:continue
-                reply={'service':'resonant-fields','nonce':nonce,'port':self.http_port}
+                expected=hmac.new(self.key.encode(),('discover:'+nonce).encode(),hashlib.sha256).hexdigest()
+                if not isinstance(proof,str) or not secrets.compare_digest(proof,expected):continue
+                signature=hmac.new(self.key.encode(),('reply:'+nonce+':'+str(self.http_port)).encode(),hashlib.sha256).hexdigest()
+                reply={'service':'resonant-fields','nonce':nonce,'port':self.http_port,'proof':signature}
                 self.socket.sendto(json.dumps(reply).encode('utf-8'),address)
             except (socket.timeout,ValueError,UnicodeError,AttributeError,TypeError):pass
             except OSError:
