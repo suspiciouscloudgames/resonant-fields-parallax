@@ -5,6 +5,9 @@
   });
   const canvas=document.getElementById('phone-screen'),button=document.getElementById('fullscreen'),connection=document.getElementById('connection');
   const key=new URLSearchParams(location.search).get('key')||'',client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  // The combined local preview already plays the PC mix on the same speakers.
+  const audioEnabled=new URLSearchParams(location.search).get('audio')!=='off';
+  SceneAudio.unlock();
   let serverId=null;
   let serial=0,snapshot=null,received=0,lastGood=0,current={mode:'clock',elapsed:0},wake=null,pending=null,lastRound=null,lastInteraction=0,videoCanvasKey=null;
   const video=document.getElementById('phone-video');DeviceScreen.setVideo(video);
@@ -67,7 +70,11 @@
     const display=presentation.sample(board,pending?.view?.elapsed??current.elapsed,age,now,current.paused);
     const renderView={...current,elapsed:display.elapsed};
     input.update(board,live&&!messages.open&&!current.paused&&current.mode==='game');
-    button.hidden=!!document.fullscreenElement;connection.hidden=true;DeviceScreen.update(current);DeviceScreen.setGame(display.game);BlitzAudio.update({...renderView,paused:current.paused||messages.open||board?.stage==='entry'},board);
+    button.hidden=!!document.fullscreenElement;connection.hidden=true;DeviceScreen.update(current);DeviceScreen.setGame(display.game);
+    const gameAudio=current.mode==='game'&&!current.paused&&!messages.open&&board?.stage!=='entry';
+    BlitzAudio.update({...renderView,paused:!audioEnabled||!gameAudio},board);
+    const cue=snapshot?.current,advance=live&&!current.paused?Math.max(0,Math.min(age,1000)):0;
+    SceneAudio.update(cue?{...cue,phaseTime:cue.phaseTime+advance,clock:cue.clock+advance}:null,!audioEnabled||!live||!snapshot?.started||current.paused,gameAudio);
     const w=Math.round(innerWidth*devicePixelRatio),h=Math.round(innerHeight*devicePixelRatio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     const stillVideoUI=current.mode==='youtube'&&!messages.open,paintKey=stillVideoUI?[current.instance,w,h].join(':'):null;
     if(!stillVideoUI||videoCanvasKey!==paintKey)DeviceScreen.render(canvas,renderView,wall,{...input.visual,notificationsInDOM:true,seekControl:true,nativeVideo:true,hint:playable()&&now-lastInteraction>6000});

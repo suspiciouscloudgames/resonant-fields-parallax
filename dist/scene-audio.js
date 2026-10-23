@@ -1,4 +1,4 @@
-/* One ambient mix on the PC host, shared by both displays. */
+/* One ambient mix per device; the PC host shares its mix across both displays. */
 window.SceneAudio=(()=>{
   const paths={music:'media/music/to-the-star.mp3',traffic:'media/ambience/traffic.m4a',rain:'media/ambience/rain.m4a'};
   const outdoors=new Set(['emerge','pause','raise','outside','encounter','dog_encounter','rain_encounter','return_wait']);

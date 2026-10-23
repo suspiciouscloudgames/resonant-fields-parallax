@@ -1,7 +1,7 @@
 {
   "license": "CC0 1.0 Universal",
   "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-  "processing": "55 Hz high-pass; normalized to -24 LUFS; 2-second equal-power wrap crossfade; 44.1 kHz stereo AAC at 192 kbit/s. Played locally by the exhibition PC only.",
+  "processing": "55 Hz high-pass; normalized to -24 LUFS; 2-second equal-power wrap crossfade; 44.1 kHz stereo AAC at 192 kbit/s. Played locally by the exhibition PC and each mobile companion.",
   "traffic": {
     "title": "StreetSideLowTraffic.wav",
     "creator": "ViaTorci",

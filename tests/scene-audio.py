@@ -11,9 +11,9 @@ try:
  process,cdp=L.connect_browser('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',folder/'chrome',origin+'/exhibition.html?run=audio-test',['--headless=new','--screen-info={0,0 1024x600}{1024,0 600x1024}'])
  hub=L.target_session(cdp,next(t['targetId'] for t in cdp.call('Target.getTargets')['targetInfos'] if '/exhibition.html' in t.get('url','')))
  cdp.call('Page.enable',{},hub)
- cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':'''const NativeAudio=window.AudioContext;
+ cdp.call('Page.addScriptToEvaluateOnNewDocument',{'source':'''const NativeAudio=window.AudioContext;window.audioMeters=[];
  window.AudioContext=class extends NativeAudio{
-  constructor(...args){super(...args);const meter=this.createAnalyser();meter.fftSize=2048;meter.connect(this.destination);window.audioMeter=meter;
+  constructor(...args){super(...args);const meter=this.createAnalyser();meter.fftSize=2048;meter.connect(this.destination);window.audioMeter=meter;window.audioMeters.push(meter);
    const create=this.createGain.bind(this);this.createGain=()=>{const gain=create(),connect=gain.connect.bind(gain);gain.connect=(target,...args)=>connect(target===this.destination?meter:target,...args);return gain;};}
  };'''},hub)
  cdp.call('Page.reload',{},hub)
@@ -24,7 +24,7 @@ try:
   if 'exceptionDetails' in r:raise AssertionError(r['exceptionDetails'])
   return r.get('result',{}).get('value')
  def status():return ev('SceneAudio.status')
- def rms():return ev('(()=>{const a=new Float32Array(audioMeter.fftSize);audioMeter.getFloatTimeDomainData(a);return Math.sqrt(a.reduce((s,v)=>s+v*v,0)/a.length)})()')
+ def rms():return ev('(()=>{return Math.sqrt(audioMeters.reduce((sum,meter)=>{const a=new Float32Array(meter.fftSize);meter.getFloatTimeDomainData(a);return sum+a.reduce((s,v)=>s+v*v,0)/a.length},0))})()')
  L.wait_for(lambda:ev('!!window.SceneAudio&&SceneAudio.status.ready'))
  assert status()['context']=='running',status()
  assert status()['targets']=={'music':.42,'traffic':0,'rain':0}

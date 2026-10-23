@@ -187,7 +187,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.client_address[0] not in ('127.0.0.1', '::1'):
             allowed = {'/phone.html', '/phone.js', '/phone.css', '/device-screen.js', '/exhibition-playback.js', '/media/blank-video.webm', '/media/youtube-short.mp4', '/video-controls.js', '/video-controls.css',
                        '/phone-messages.js', '/phone-messages.css', '/blitz-session.js', '/exhibition-events.js', '/blitz-game.js', '/blitz-view.js', '/blitz-input.js', '/blitz-presentation.js', '/blitz-audio.js', '/media/blitz/frame.png', '/media/blitz/board.png', '/media/blitz/gems.png',
-                       '/media/blitz/recording.m4a', '/media/blitz/match.m4a', '/media/blitz/swap.m4a', '/media/blitz/power.m4a'}
+                       '/media/blitz/recording.m4a', '/media/blitz/match.m4a', '/media/blitz/swap.m4a', '/media/blitz/power.m4a',
+                       '/scene-audio.js', '/rain-encounter.js', '/media/ambience/traffic.m4a', '/media/ambience/rain.m4a', '/media/music/to-the-star.mp3'}
             if parsed.path not in allowed:
                 return self.reply({'error': 'Not found'}, 404)
         return super().do_GET()

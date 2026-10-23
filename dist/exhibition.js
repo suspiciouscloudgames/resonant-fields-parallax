@@ -15,6 +15,7 @@
   });
   DeviceScreen.setVideo(document.getElementById('source-video'));
   SceneAudio.unlock();
+  BlitzAudio.unlock();
   function foregroundAudio(cue){
     if(!cue||cue.phone.paused)return false;
     const view={...cue.phone,instance:cue.instance};
@@ -41,7 +42,12 @@
   window.Installation={
     sizes,engine:SceneGame,playback,pxPerMM:96/25.4,placementReady:false,error:null,
     // Both display windows request frames; compose the shared pixel scene once.
-    advance(now){if(now-lastDraw>=1000/30-1){lastDraw=now;playback.advance(now);SceneAudio.update(playback.status.current,playback.status.paused||!playback.started,foregroundAudio(playback.status.current));}publish();},publish,
+    advance(now){if(now-lastDraw>=1000/30-1){
+      lastDraw=now;playback.advance(now);
+      const cue=playback.status.current,paused=playback.status.paused||!playback.started,foreground=foregroundAudio(cue);
+      SceneAudio.update(cue,paused,foreground);
+      BlitzAudio.update({...cue?.phone,paused:paused||!foreground},cue?.phone.mode==='game'?session?.state:null);
+    }publish();},publish,
     rect(id){const [w,h]=sizes[id];return {...regions[id],w:w*240/500,h:h*240/500};},
     paintCaption(canvas,id){
       const cue=playback.status.current;

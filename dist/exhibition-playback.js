@@ -11,7 +11,9 @@ window.ExhibitionPlayback=(()=>{
   function cueAt(cue,index,step,within,time,sceneStart){
     let phaseTime=within,phase=cue.phases[0];
     for(const p of cue.phases){phase=p;if(phaseTime<p.duration)break;phaseTime-=p.duration;}
-    const sceneLock=within<1800;
+    // Keep the phone locked while putting the device away, through the next
+    // scene's opening lock. Otherwise old notification cards flash in between.
+    const sceneLock=within<1800||(['youtube','game'].includes(cue.id)&&['stow','home'].includes(phase.state));
     const mode=sceneLock?'clock':phase.state==='gaming'?'game':phase.state==='read'&&cue.id==='youtube'?'youtube':'clock';
     return {...cue,index,step,elapsed:within,clipTime:within,clock:time,sceneStart,
       phase:phase.state,phaseTime,phaseRemaining:Math.max(0,phase.duration-phaseTime),
