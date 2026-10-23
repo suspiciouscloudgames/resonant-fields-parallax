@@ -30,7 +30,8 @@ window.PhoneMessages=(()=>{
     const locks=document.createElement('div');locks.className='pm-lock-list';locks.setAttribute('aria-label','받은 문자 미리보기');root.append(locks);
     const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';locks.append(lock);
     let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
-    const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
+    const shownAt=item=>item.displayAt??item.receivedAt;
+    const stamp=(time,date=false)=>new Date(time).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',...(date?{month:'numeric',day:'numeric'}:{}),hour:'numeric',minute:'2-digit',hour12:true});
     function paint(){
       const state=project(data,view,now),keyPaint=[data?.ui?.revision,view.instance,view.mode,view.sceneLock,state.banner,state.open,state.conversationId,state.latest?.id,state.items.length,Math.floor(now/60000),older.length].join(':');
       if(keyPaint===paintKey)return;paintKey=keyPaint;
@@ -44,7 +45,7 @@ window.PhoneMessages=(()=>{
       panel.classList.toggle('pm-clock-inbox',!inThread&&view.mode==='clock');
       find('.pm-contact').hidden=!inThread;find('.pm-contact strong').textContent=state.conversation.title;
       find('.pm-inbox').hidden=inThread;thread.hidden=!inThread;find('form').hidden=!inThread;
-      function paintCard(card,item){const name=item?.sender||contact(item?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=item?.text||'';card.querySelector('.pm-banner-heading>span').textContent=item?stamp(item.receivedAt,item.preset):'';card.setAttribute('aria-label',name+' · '+(item?.text||'')+' 문자메시지 열기');}
+      function paintCard(card,item){const name=item?.sender||contact(item?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=item?.text||'';card.querySelector('.pm-banner-heading>span').textContent=item?stamp(shownAt(item),item.preset||item.sceneNumber!==6):'';card.setAttribute('aria-label',name+' · '+(item?.text||'')+' 문자메시지 열기');}
       paintCard(banner,state.latest);locks.replaceChildren(lock);
       state.lockItems.forEach((item,index)=>{const card=index?banner.cloneNode(true):lock;card.className='pm-banner '+(index?'pm-lock-card':'pm-lock');card.hidden=!state.lock;paintCard(card,item);card.onclick=()=>action('open',null,item.conversationId||'daughter');locks.append(card);});
       const list=find('.pm-conversations');list.replaceChildren();
@@ -53,7 +54,7 @@ window.PhoneMessages=(()=>{
         row.innerHTML='<span class="pm-unread" aria-hidden="true"></span><span class="pm-list-avatar" aria-hidden="true">'+person+'</span><span class="pm-list-copy"><span class="pm-list-heading"><strong></strong><time></time><span aria-hidden="true">›</span></span><span class="pm-list-preview"></span></span>';
         row.querySelector('strong').textContent=conversation.title;
         row.querySelector('.pm-unread').hidden=!conversation.unread;
-        const latest=conversation.latest;row.querySelector('time').textContent=latest?new Date(latest.receivedAt).toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'}):'';
+        const latest=conversation.latest;row.querySelector('time').textContent=latest?new Date(shownAt(latest)).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric'}):'';
         row.querySelector('.pm-list-preview').textContent=latest?(latest.incoming?'':'나: ')+latest.text:'아직 메시지가 없습니다';
         row.onclick=()=>action('select',null,conversation.id);list.append(row);
       }
@@ -65,7 +66,7 @@ window.PhoneMessages=(()=>{
         previousOpen=state.open;
       }
       const all=[...new Map([...older,...state.threadItems].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=state.conversationId+':'+all.map(i=>i.id).join(',');
-      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(item.receivedAt).toISOString();time.textContent=stamp(item.receivedAt,true);row.append(time,bubble);items.append(row);}thread.scrollTop=scroll;
+      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(shownAt(item)).toISOString();time.textContent=stamp(shownAt(item),true);row.append(time,bubble);items.append(row);}thread.scrollTop=scroll;
         if(!opened&&!changedThread&&nearEnd&&all.length>previousCount){const firstNew=items.children[previousCount];thread.scrollTop=firstNew.offsetTop-thread.offsetTop-16;}
       }
       if(opened||changedThread)thread.scrollTop=all.some(i=>i.text.length>120)?0:thread.scrollHeight;

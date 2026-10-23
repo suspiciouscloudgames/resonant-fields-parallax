@@ -79,6 +79,14 @@ class ExhibitionServer(http.server.ThreadingHTTPServer):
         through=history['items'][-1]['id'] if history['items'] else 0
         self.ui['readThroughByConversation']={**self.ui['readThroughByConversation'],conversation_id:through}
         self.store.set_meta('readThroughByConversation',self.ui['readThroughByConversation'])
+        scene=(self.state or {}).get('current')
+        if not scene or scene['phone'].get('sceneLock'):return
+        message=next((item for item in reversed(self.store.messages(conversation_id=conversation_id)['items'])
+                      if item['incoming'] and not item['preset'] and item['sceneInstance']==scene['instance']),None)
+        if message:
+            self.store.emit('message.read',{'scene':self.store.scene(scene),'messageId':message['id'],
+                'conversationId':conversation_id,'trigger':'conversation.visible'},
+                key=scene['instance']+':message.read')
 
     def receive_state(self,value):
         self.state=value;self.state_received=time.monotonic()

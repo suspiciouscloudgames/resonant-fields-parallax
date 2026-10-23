@@ -1,10 +1,11 @@
 """Durable local message history and replayable events owned by the dual-display PC."""
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 import time
 
+KOREA=timezone(timedelta(hours=9))
 CONVERSATIONS={'daughter':'딸','neighbor':'저장되지 않은 번호'}
 PRESET_MESSAGES=[('밥은 챙겨 드셨어요?',True),('응, 방금 먹었어.',False),('다음 주에 들를게요.',True),('그래. 올 때 연락해.',False),('네, 그때 봬요.',True)]
 
@@ -14,6 +15,8 @@ class ExhibitionStore:
             Path(path).parent.mkdir(parents=True,exist_ok=True)
         self.db=sqlite3.connect(str(path) if path else ':memory:',check_same_thread=False)
         self.db.row_factory=sqlite3.Row
+        schedule=json.loads((Path(__file__).parent/'dist/scene-messages.json').read_text(encoding='utf-8'))
+        self.history_count=len(PRESET_MESSAGES)+sum(len(rows) for name,rows in schedule.items() if name!='dog')
         self.db.executescript('''
           CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, delivery_key TEXT UNIQUE, text TEXT NOT NULL, received_at INTEGER NOT NULL, incoming INTEGER NOT NULL, scene_id TEXT, scene_number INTEGER, scene_instance TEXT);
           CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, event_key TEXT UNIQUE, type TEXT NOT NULL, occurred_at INTEGER NOT NULL, payload TEXT NOT NULL);
@@ -37,13 +40,14 @@ class ExhibitionStore:
                     self.db.execute("UPDATE messages SET text=?,incoming=?,conversation_id='daughter' WHERE delivery_key=? AND is_preset=1",(text,int(incoming),'preset:'+str(i)))
                 self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',('presetConversationVersion','1'))
         self.db.commit()
+        if self.meta('messageDateAnchor') is None:self.set_meta('messageDateAnchor',int(time.time()*1000))
     def begin_loop(self,loop_id,scene,now=None):
         if self.meta('loopId')==loop_id:return False
         now=int(now if now is not None else time.time()*1000)
         read_through=self.db.execute('SELECT COALESCE(MAX(id),0) FROM messages WHERE is_preset=1').fetchone()[0]
         with self.db:
             self.db.execute('DELETE FROM messages WHERE is_preset=0')
-            for key,value in [('loopId',loop_id),('readThrough',read_through),('readThroughByConversation',{'daughter':read_through,'neighbor':0})]:
+            for key,value in [('messageDateAnchor',now),('loopId',loop_id),('readThrough',read_through),('readThroughByConversation',{'daughter':read_through,'neighbor':0})]:
                 self.db.execute('INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)',(key,json.dumps(value)))
             self.db.execute('INSERT OR IGNORE INTO events(event_key,type,occurred_at,payload) VALUES(?,?,?,?)',
                 ('loop:'+loop_id+':messages.reset','messages.reset',now,json.dumps({'loopId':loop_id,'presetCount':5,'scene':self.scene(scene)},ensure_ascii=False)))
@@ -68,11 +72,24 @@ class ExhibitionStore:
     @staticmethod
     def scene(scene):
         return {k:scene.get(k) for k in ('id','index','step','cycle','instance','side','elapsed','duration')}
-    @staticmethod
-    def item(row):
+    def display_time(self,row):
+        # Arrival time remains real for notification expiry, vibration and event replay.
+        if not row['is_preset'] and row['scene_number']==6:return row['received_at']
+        if row['is_preset']:
+            ordinal=int(row['delivery_key'].split(':')[-1])
+        else:
+            delivered=self.db.execute('SELECT COUNT(*) FROM messages WHERE is_preset=0 AND incoming=1 AND scene_number!=6 AND id<=?',(row['id'],)).fetchone()[0]
+            ordinal=len(PRESET_MESSAGES)+max(0,delivered-1)
+        weeks=max(1,self.history_count-ordinal)
+        anchor=datetime.fromtimestamp(self.meta('messageDateAnchor')/1000,KOREA)
+        # Stable afternoon times, 13:00 through 15:59, unaffected by refresh/restart.
+        minute=(ordinal*37+17)%180
+        stamp=(anchor-timedelta(weeks=weeks)).replace(hour=13+minute//60,minute=minute%60,second=0,microsecond=0)
+        return int(stamp.timestamp()*1000)
+    def item(self,row):
         if row is None:return None
         contact=CONVERSATIONS[row['conversation_id']]
-        return {'id':row['id'],'text':row['text'],'receivedAt':row['received_at'],'incoming':bool(row['incoming']),'sceneId':row['scene_id'],'sceneNumber':row['scene_number'],'sceneInstance':row['scene_instance'],'preset':bool(row['is_preset']),'conversationId':row['conversation_id'],'sender':contact if row['incoming'] else '나','contactName':contact}
+        return {'id':row['id'],'text':row['text'],'receivedAt':row['received_at'],'displayAt':self.display_time(row),'incoming':bool(row['incoming']),'sceneId':row['scene_id'],'sceneNumber':row['scene_number'],'sceneInstance':row['scene_instance'],'preset':bool(row['is_preset']),'conversationId':row['conversation_id'],'sender':contact if row['incoming'] else '나','contactName':contact}
     def messages(self,before=None,limit=100,conversation_id=None):
         if conversation_id is not None and conversation_id not in CONVERSATIONS:raise ValueError('Unknown conversation')
         where='1=1' if conversation_id is None else 'conversation_id=?'

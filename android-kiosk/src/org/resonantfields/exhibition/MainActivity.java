@@ -4,6 +4,10 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.KeyguardManager;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.os.PowerManager;
 import android.graphics.Color;
 import android.media.AudioAttributes;
 import android.net.Uri;
@@ -44,7 +48,14 @@ import org.json.JSONArray;
 public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private FrameLayout root;
-    private WebView web;
+    private volatile WebView web;
+    private boolean exhibitionStarted;
+    private final BroadcastReceiver screenReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            if(Intent.ACTION_SCREEN_OFF.equals(intent.getAction())){if(exhibitionStarted)suspendExhibition();}
+            else resumeExhibition();
+        }
+    };
     private TextView offline;
     private volatile String endpoint;
     private volatile boolean closed;
@@ -120,7 +131,12 @@ public class MainActivity extends Activity {
         endpoint=getPreferences(MODE_PRIVATE).getString("endpoint","");
         String supplied=getIntent().getStringExtra("url");
         if(supplied!=null && validEndpoint(supplied)){endpoint=supplied;saveEndpoint();}
-        if(validEndpoint(endpoint))showStart();else showSetup();
+        exhibitionStarted=state!=null&&state.getBoolean("exhibitionStarted",false)&&validEndpoint(endpoint);
+        if(exhibitionStarted)allowExhibitionOverLock();
+        else if(validEndpoint(endpoint))showStart();else showSetup();
+        IntentFilter screenEvents=new IntentFilter(Intent.ACTION_SCREEN_OFF);
+        screenEvents.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenReceiver,screenEvents);
         immersive();
         network.scheduleWithFixedDelay(this::checkConnection,5,5,TimeUnit.SECONDS);
     }
@@ -153,7 +169,7 @@ public class MainActivity extends Activity {
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName())));
         }
         Button start=new Button(this);start.setText("전시 시작");box.addView(start);
-        start.setOnClickListener(v->{openExhibition();
+        start.setOnClickListener(v->{exhibitionStarted=true;allowExhibitionOverLock();resumeExhibition();
             ActivityManager am=(ActivityManager)getSystemService(ACTIVITY_SERVICE);
             if(am.getLockTaskModeState()==ActivityManager.LOCK_TASK_MODE_NONE)startLockTask();});
     }
@@ -187,10 +203,33 @@ public class MainActivity extends Activity {
             int port=reply.getInt("port");if(port<1024 || port>65535)return;
             String found=Uri.parse(original).buildUpon().encodedAuthority(packet.getAddress().getHostAddress()+":"+port).build().toString();
             if(!validEndpoint(found)||found.equals(original))return;
-            runOnUiThread(()->{if(!closed && endpoint.equals(original)){
+            runOnUiThread(()->{if(!closed && web!=null && endpoint.equals(original)){
                 endpoint=found;saveEndpoint();web.loadUrl(endpoint);
             }});
         }catch(Exception ignored){}
+    }
+    // Show only the exhibition above the lock screen; Android settings remain PIN protected.
+    // Never use TURN_SCREEN_ON: only the physical button should wake the display.
+    private void allowExhibitionOverLock(){
+        if(android.os.Build.VERSION.SDK_INT>=27)setShowWhenLocked(true);
+        else getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
+    }
+    private void resumeExhibition(){
+        PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
+        if(closed||!resumed||!exhibitionStarted||!power.isInteractive()||web!=null)return;
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        openExhibition();
+    }
+    private void suspendExhibition(){
+        pageGeneration++;arrivals.reconnect();
+        handler.removeCallbacks(observeMessages);handler.removeCallbacks(vibrateNext);handler.removeCallbacks(retry);
+        pendingVibrations=0;vibrationActive=false;if(vibrator!=null)vibrator.cancel();
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // Destroy the page to stop video, WebAudio, timers and requests together.
+        // The PC owns progress; a fresh page on wake joins its current scene.
+        WebView old=web;web=null;
+        if(old!=null){root.removeView(old);old.setKeepScreenOn(false);old.stopLoading();old.onPause();old.destroy();}
+        root.removeAllViews();
     }
     private void openExhibition(){
         root.removeAllViews();web=new WebView(this);web.setBackgroundColor(Color.rgb(16,19,24));web.setKeepScreenOn(true);
@@ -204,12 +243,12 @@ public class MainActivity extends Activity {
                 // Never leave the paired phone page or open another application.
                 return !endpoint.equals(request.getUrl().toString());
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){failed=false;pageGeneration++;arrivals.reconnect();}
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){if(view!=web)return;failed=false;pageGeneration++;arrivals.reconnect();}
             @Override public void onPageFinished(WebView view,String url){
-                if(!failed){offline.setVisibility(View.GONE);handler.removeCallbacks(retry);immersive();}
+                if(view==web&&!failed){offline.setVisibility(View.GONE);handler.removeCallbacks(retry);immersive();}
             }
             @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError err){
-                if(!req.isForMainFrame())return;failed=true;offline.setVisibility(View.VISIBLE);
+                if(view!=web||!req.isForMainFrame())return;failed=true;offline.setVisibility(View.VISIBLE);
                 handler.removeCallbacks(retry);handler.postDelayed(retry,5000);
             }
         });
@@ -222,8 +261,9 @@ public class MainActivity extends Activity {
         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY|View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|
         View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);}
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus)immersive();}
-    @Override public void onResume(){super.onResume();resumed=true;immersive();handler.removeCallbacks(observeMessages);handler.post(observeMessages);}
-    @Override public void onPause(){resumed=false;pageGeneration++;arrivals.reconnect();handler.removeCallbacks(observeMessages);handler.removeCallbacks(vibrateNext);pendingVibrations=0;vibrationActive=false;if(vibrator!=null)vibrator.cancel();super.onPause();}
+    @Override public void onResume(){super.onResume();resumed=true;immersive();resumeExhibition();}
+    @Override public void onSaveInstanceState(Bundle state){state.putBoolean("exhibitionStarted",exhibitionStarted);super.onSaveInstanceState(state);}
+    @Override public void onPause(){resumed=false;if(exhibitionStarted)suspendExhibition();super.onPause();}
     @Override public void onBackPressed(){if(web!=null){web.evaluateJavascript("document.activeElement && document.activeElement.blur()",null);immersive();}}
-    @Override public void onDestroy(){closed=true;network.shutdownNow();handler.removeCallbacksAndMessages(null);if(vibrator!=null)vibrator.cancel();if(web!=null){web.stopLoading();web.destroy();}super.onDestroy();}
+    @Override public void onDestroy(){closed=true;unregisterReceiver(screenReceiver);network.shutdownNow();handler.removeCallbacksAndMessages(null);if(vibrator!=null)vibrator.cancel();if(web!=null){web.stopLoading();web.destroy();}super.onDestroy();}
 }

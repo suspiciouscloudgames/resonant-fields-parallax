@@ -4,10 +4,11 @@
   "transport": "SSE",
   "endpoint": "/api/events/stream?key={pairingKey}&after={lastEventId}",
   "replay": "Last-Event-ID or after; persistent increasing id; consumers deduplicate by id",
-  "clock": "occurredAt and receivedAt are Unix milliseconds at receipt on the exhibition PC",
+  "clock": "occurredAt and receivedAt are actual Unix milliseconds on the exhibition PC. displayAt is the fictional message date for UI only; do not use it to schedule signals.",
   "types": [
     "scene.started",
     "message.received",
+    "message.read",
     "message.replied",
     "phone.screen.changed",
     "game.round.started",
@@ -67,6 +68,39 @@
         6
       ],
       "presetMessageCount": 0
+    }
+  },
+  "readSignal": {
+    "type": "message.read",
+    "emission": "Once per scene.instance, when a current-scene incoming message is visible in its conversation. Opening before arrival emits when the first message arrives while that conversation is open.",
+    "deduplication": "Producer persists a unique scene.instance + :message.read event key. Replay can deliver the same event again: consumer must deduplicate by event.id (or scene.instance).",
+    "notTriggeredBy": [
+      "notification alone",
+      "conversation list",
+      "old messages from another scene",
+      "presets",
+      "replies"
+    ],
+    "nextLoop": "A new scene.instance permits a new signal. No read means no signal.",
+    "meaning": "Conversation visibility, not proof that the visitor finished reading."
+  },
+  "readExample": {
+    "schemaVersion": 1,
+    "id": 43,
+    "source": "dual-display",
+    "type": "message.read",
+    "occurredAt": 1792600005000,
+    "payload": {
+      "scene": {
+        "id": "smoking",
+        "index": 0,
+        "step": 6,
+        "cycle": 1,
+        "instance": "example-run:6"
+      },
+      "messageId": 7,
+      "conversationId": "daughter",
+      "trigger": "conversation.visible"
     }
   }
 }
