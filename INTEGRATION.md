@@ -4,6 +4,36 @@
 이 기능은 **v0.3.16-weekly-messages 이상**의 실행 중인 전시 PC 서버에서 제공됩니다.
 GitHub 자체가 신호를 전송하는 것은 아닙니다. 수신 프로그램이 전시 PC에 연결해야 합니다.
 
+## 라즈베리파이에서 받는 주소 (조호연 님)
+
+`http://PC주소:포트/phone.html?key=페어링키`는 **PC가 제공하고 폰에서 여는 화면 주소**입니다. 폰 자체의 IP 주소가 아닙니다. 라즈베리파이는 폰을 거치지 않고 **전시 PC**의 이벤트 API를 구독합니다.
+
+| 용도 | 경로 |
+| --- | --- |
+| 폰 화면 | `/phone.html?key=PAIRING_KEY` |
+| 연결 확인 | `/api/info?key=PAIRING_KEY` |
+| 신호 수신 (SSE) | `/api/events/stream?key=PAIRING_KEY&after=LAST_EVENT_ID` |
+| 신호 수신 (HTTP 폴링) | `/api/events?key=PAIRING_KEY&after=LAST_EVENT_ID` |
+
+모두 PHONE 주소와 같은 PC 호스트·포트·페어링키를 사용합니다. 실제 주소와 키는 운영자에게 별도로 전달받으세요. Wi-Fi 변경으로 PC의 IP가 바뀌면 실제 PHONE 주소를 기준으로 수정합니다.
+
+라즈베리파이 터미널에서 아래처럼 연결을 진단할 수 있습니다. Python 3와 curl을 사용합니다. 첫 실행은 현재 커서부터 시작해 과거 신호를 재생하지 않습니다.
+
+```bash
+read -r -p 'PC 기본 주소 (예: http://192.168.1.219:8770): ' PC_BASE
+read -r -s -p '페어링키: ' PAIRING_KEY
+printf '\n'
+curl --fail --connect-timeout 5 "$PC_BASE/api/info?key=$PAIRING_KEY"
+LAST_EVENT_ID=$(curl --fail --connect-timeout 5 "$PC_BASE/api/events?key=$PAIRING_KEY" | python3 -c 'import sys,json; print(json.load(sys.stdin)["latestCursor"])')
+curl --fail --no-buffer --connect-timeout 5 "$PC_BASE/api/events/stream?key=$PAIRING_KEY&after=$LAST_EVENT_ID"
+```
+
+SSE의 `data:` JSON에서 **`type == "message.read"`**인 경우만 장치를 동작시키세요. `payload.scene.index + 1`이 씬 번호이며 `payload.scene.instance`가 회차까지 구분하는 씬 식별자입니다.
+
+서버는 SSE의 `event: message.read` 필드를 보내지 않습니다. 브라우저 EventSource에서는 `onmessage`로 받은 JSON의 `type`을 검사해야 합니다. Python에서도 `data:`를 JSON으로 해석하고 같은 필터를 적용합니다.
+
+위 curl 명령은 진단용입니다. 실제 수신 프로그램은 마지막 처리 완료 `id`를 파일에 영속 저장하고, 끊기면 해당 커서로 재접속하며, 재전송된 이벤트로 장치를 중복 실행하지 않도록 해야 합니다. `: connected`와 `: heartbeat`는 신호가 아닌 연결 유지용 주석입니다. 같은 공용 Wi-Fi여도 기기 간 통신이 차단되면 접속할 수 없습니다. 연결 시간 초과는 네트워크·PC 실행·방화벽을, HTTP 403은 페어링키를 확인합니다.
+
 ## 씬당 한 번의 의미
 
 - 현재 씬에서 도착한 문자의 **대화 본문이 처음 열렸을 때** 한 번 발생합니다.
