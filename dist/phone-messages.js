@@ -28,7 +28,19 @@ window.PhoneMessages=(()=>{
     document.body.append(root);
     const find=s=>root.querySelector(s),banner=find('.pm-banner'),panel=find('.pm-messages'),input=find('.pm-input'),send=find('.pm-send'),items=find('.pm-items'),thread=find('.pm-thread');
     const locks=document.createElement('div');locks.className='pm-lock-list';locks.setAttribute('aria-label','받은 문자 미리보기');root.append(locks);
-    const lock=banner.cloneNode(true);lock.className='pm-banner pm-lock';locks.append(lock);
+    // Keep existing cards/rows mounted: replacing them restarts arrival animations.
+    function reconcile(parent,entries,keyOf,create,update){
+      const keys=new Set(entries.map(keyOf)),existing=new Map(Array.from(parent.children,node=>[node.pmKey,node]));
+      for(const [key,node] of existing)if(!keys.has(key))node.remove();
+      let cursor=parent.firstElementChild;
+      for(const entry of entries){
+        const key=keyOf(entry);let node=existing.get(key);
+        if(!node){node=create(entry);node.pmKey=key;}
+        update(node,entry);
+        if(node!==cursor)parent.insertBefore(node,cursor);
+        cursor=node.nextElementSibling;
+      }
+    }
     let previousOpen=false,lastItems='',canvasStates=[],suppressClick=false,touchY=null;
     const shownAt=item=>item.displayAt??item.receivedAt;
     const threadStamp=time=>'('+new Date(time).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',weekday:'long'})+') '+new Date(time).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false});
@@ -39,7 +51,7 @@ window.PhoneMessages=(()=>{
       if(keyPaint===paintKey)return;paintKey=keyPaint;
       const changedThread=selectedThread!==state.conversationId;
       if(changedThread){selectedThread=state.conversationId;older=[];olderComplete=false;lastItems='';input.value='';send.disabled=true;}
-      banner.hidden=!state.banner;locks.hidden=!state.lock;lock.hidden=!state.lock;panel.hidden=!state.open;
+      banner.hidden=!state.banner;locks.hidden=!state.lock;panel.hidden=!state.open;
       const inThread=!!state.conversationId,baseLabel=view.mode==='game'?'게임':view.mode==='youtube'?'영상':'잠금화면',label=inThread?'메시지':baseLabel;
       find('.pm-back').innerHTML='<span aria-hidden="true">‹</span> '+label;find('.pm-back').setAttribute('aria-label',label+'으로 돌아가기');
       find('.pm-back').hidden=!inThread&&view.mode==='clock';
@@ -48,8 +60,10 @@ window.PhoneMessages=(()=>{
       find('.pm-contact').hidden=!inThread;find('.pm-contact strong').textContent=state.conversation.title;
       find('.pm-inbox').hidden=inThread;thread.hidden=!inThread;find('form').hidden=!inThread;
       function paintCard(card,item){const name=item?.sender||contact(item?.conversationId).title;card.querySelector('strong').textContent=name;card.querySelector('.pm-preview').textContent=item?.text||'';card.querySelector('.pm-banner-heading>span').textContent=item?stamp(shownAt(item),item.preset||item.sceneNumber!==6):'';card.setAttribute('aria-label',name+' · '+(item?.text||'')+' 문자메시지 열기');}
-      paintCard(banner,state.latest);locks.replaceChildren(lock);
-      state.lockItems.forEach((item,index)=>{const card=index?banner.cloneNode(true):lock;card.className='pm-banner '+(index?'pm-lock-card':'pm-lock');card.hidden=!state.lock;paintCard(card,item);card.onclick=()=>action('open',null,item.conversationId||'daughter');locks.append(card);});
+      paintCard(banner,state.latest);
+      reconcile(locks,state.lockItems,item=>historyId+':'+item.id,()=>{
+        const card=banner.cloneNode(true);card.className='pm-banner pm-lock-card';return card;
+      },(card,item)=>{card.hidden=!state.lock;paintCard(card,item);card.onclick=()=>action('open',null,item.conversationId||'daughter');});
       const list=find('.pm-conversations');list.replaceChildren();
       for(const conversation of [...state.conversations].sort((a,b)=>(b.latest?.receivedAt||0)-(a.latest?.receivedAt||0))){
         const row=document.createElement('button');row.className='pm-conversation';row.dataset.conversation=conversation.id;row.setAttribute('aria-label',conversation.title+' 대화 열기');
@@ -68,7 +82,14 @@ window.PhoneMessages=(()=>{
         previousOpen=state.open;
       }
       const all=[...new Map([...older,...state.threadItems].map(i=>[i.id,i])).values()].sort((a,b)=>a.id-b.id),key=state.conversationId+':'+all.map(i=>i.id).join(',');
-      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;items.replaceChildren();let previousTime=null;for(const item of all){const row=document.createElement('div');row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');const bubble=document.createElement('div');bubble.className='pm-bubble';bubble.textContent=item.text;const time=document.createElement('time');time.dateTime=new Date(shownAt(item)).toISOString();time.textContent=threadStamp(shownAt(item));const at=shownAt(item);if(previousTime===null||dayKey(at)!==dayKey(previousTime)||at-previousTime>=300000){row.classList.add('pm-separated');row.append(time);}row.append(bubble);items.append(row);previousTime=at;}thread.scrollTop=scroll;
+      if(key!==lastItems){const scroll=thread.scrollTop,nearEnd=thread.scrollHeight-thread.clientHeight-scroll<64,previousCount=items.children.length;lastItems=key;let previousTime=null;
+        reconcile(items,all,item=>historyId+':'+item.id,()=>{
+          const row=document.createElement('div');row.append(document.createElement('time'));const bubble=document.createElement('div');bubble.className='pm-bubble';row.append(bubble);return row;
+        },(row,item)=>{
+          row.className='pm-row '+(item.incoming?'pm-incoming':'pm-outgoing');row.querySelector('.pm-bubble').textContent=item.text;
+          const time=row.querySelector('time'),at=shownAt(item),separated=previousTime===null||dayKey(at)!==dayKey(previousTime)||at-previousTime>=300000;
+          time.dateTime=new Date(at).toISOString();time.textContent=threadStamp(at);time.hidden=!separated;row.classList.toggle('pm-separated',separated);previousTime=at;
+        });thread.scrollTop=scroll;
         if(!opened&&!changedThread&&nearEnd&&all.length>previousCount){const firstNew=items.children[previousCount];thread.scrollTop=firstNew.offsetTop-thread.offsetTop-16;}
       }
       if(opened||changedThread)thread.scrollTop=all.some(i=>i.text.length>120)?0:thread.scrollHeight;
