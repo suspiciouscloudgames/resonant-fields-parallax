@@ -14,6 +14,9 @@
     },
   });
   DeviceScreen.setVideo(document.getElementById('source-video'));
+  // Slightly louder PC mix; each mobile player retains its default level.
+  SceneAudio.setVolume(1.2);
+  BlitzAudio.setVolume(1.2);
   SceneAudio.unlock();
   BlitzAudio.unlock();
   function foregroundAudio(cue){

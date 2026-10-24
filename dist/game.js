@@ -19,6 +19,7 @@
   const swayLayer=document.createElement('canvas');swayLayer.width=W;swayLayer.height=H;
   let traffic=null,masterRoom=room,printRoom=room,printLayout=null;
   let completedOutings=0,selectedEncounter=1,indoorAction=0,afterStow='home',standPurpose='exit';
+  let indoorVisible=false;
   let state='loading',elapsed=0,last=0,animationTime=0,stillPixels,leafPixels,tabletFromArm=null;
   const durations={enter:SceneCharacter.walkDurations.enter,sit:3600,cigarette:6800,tablet:1800,stow:1100,stand:3600,exit:SceneCharacter.walkDurations.exit,wait:10000,emerge:5800,pause:1200,raise:1200,outside:5000,encounter:SceneEncounter.duration,dog_encounter:SceneDogEncounter.duration,rain_encounter:SceneRainEncounter.duration,return_wait:5000,plant_walk:5500,plant_care:12000,plant_back:5500,plant_sit:3600,return_enter:SceneCharacter.walkDurations.enter,return_sit:3600};
   const next={enter:'sit',sit:'cigarette',cigarette:'smoke',tablet:'read',stow:'stand',stand:'exit',exit:'wait',wait:'emerge',emerge:'pause',pause:'raise',raise:'outside',outside:'encounter',encounter:'return_wait',return_enter:'return_sit',return_sit:'home',dog_encounter:'return_wait',rain_encounter:'return_wait',return_wait:'return_enter',plant_walk:'plant_care',plant_care:'plant_back',plant_back:'plant_sit',plant_sit:'home'};
@@ -567,8 +568,18 @@
       ctx.drawImage(masterRoom,0,0,W,H);traffic.draw(ctx,animationTime);ctx.restore();
     }
     const p=Math.min(1,elapsed/(durations[state]||1));
+    // Compare the actual first-screen pixels while exiting, including plant
+    // occlusion and the installed aperture. Audio must not lead a visible actor.
+    let exitPixels=null,exitRect=null;indoorVisible=false;
+    if(installationMode&&state==='exit'&&window.Installation){
+      const r=Installation.rect('landscape');
+      const x=Math.max(0,Math.ceil(r.x*density-.5)),y=Math.max(0,Math.ceil(r.y*density-.5));
+      exitRect=[x,y,Math.min(canvas.width-x,Math.ceil((r.x+r.w)*density-.5)-x),Math.min(canvas.height-y,Math.ceil((r.y+r.h)*density-.5)-y)];
+      exitPixels=ctx.getImageData(...exitRect).data;
+    }
     const indoorState={return_enter:'enter',return_sit:'sit',plant_sit:'sit',home:'rest'}[state]||state;
     if(['enter','sit','cigarette','smoke','smokeHold','tablet','read','gaming','stow','stand','exit','rest','plant_walk','plant_care','plant_back'].includes(indoorState)){
+      indoorVisible=true;
       const tending=indoorState==='plant_care';if(tending)touchedLeaves(p);
       actorContext.clearRect(0,0,272,362);SceneCharacter.indoor(actorContext,indoorState,elapsed,['enter','exit','sit','stand','cigarette','plant_walk','plant_care','plant_back'].includes(indoorState)?p:ease(p),room,animationTime,tabletFromArm);SceneCharacter.rimLight(actor,1);if(installationMode)PixelOutput.hardenAlpha(actor);ctx.drawImage(actor,-3+indoorOffsetX,-42+indoorOffsetY,326,434);
       ctx.save();ctx.translate(indoorOffsetX,0);SceneCharacter.tabletVideo(ctx,state,ease(p),animationTime,density,indoorOffsetY);ctx.restore();
@@ -578,6 +589,10 @@
         ctx.save();ctx.translate(indoorOffsetX,indoorOffsetY);ctx.beginPath();ctx.moveTo(65,238);ctx.lineTo(110,224);ctx.lineTo(116,230);ctx.lineTo(114,260);ctx.lineTo(66,279);ctx.lineTo(64,245);ctx.closePath();ctx.clip();ctx.drawImage(masterRoom,-indoorOffsetX,-indoorOffsetY,W,H);ctx.restore();
       }
       if(!tending)ctx.drawImage(plant,indoorOffsetX,indoorOffsetY);
+      if(exitPixels){
+        const after=ctx.getImageData(...exitRect).data;indoorVisible=false;
+        for(let i=0;i<after.length;i+=4)if(after[i]!==exitPixels[i]||after[i+1]!==exitPixels[i+1]||after[i+2]!==exitPixels[i+2]){indoorVisible=true;break;}
+      }
     }
     if(['emerge','pause','raise','outside','encounter','dog_encounter','rain_encounter','ended'].includes(state)||(state==='return_wait'&&selectedEncounter===3)){
       // Preserve the outdoor sprite before the old 240px wall could discard it.
@@ -654,7 +669,7 @@
       elapsed=Math.min(remaining,phase.duration);animationTime=clock;
       if(window.DeviceScreen&&cue)DeviceScreen.update({...cue.phone,instance:cue.instance,paused:cue.phone.paused||window.Installation?.playback.status.paused});
       if(state!==phase.state)change(phase.state);
-      draw();
+      draw();if(cue)cue.indoorVisible=indoorVisible;
     },
     reset(){selectedEncounter=1;completedOutings=0;indoorAction=0;afterStow='home';standPurpose='exit';elapsed=0;animationTime=0;last=Date.now();tabletFromArm=null;change('idle');if(this.ready)draw();},
     pause(value){installationPaused=!!value;last=Date.now();},

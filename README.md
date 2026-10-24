@@ -29,7 +29,7 @@ Android 모바일 1.7은 일반 화면 고정 대신 기기 소유자(Device Own
 - 캐릭터는 세로 기기를 들고 모바일의 게임·영상·메시지 상태를 픽셀 화면으로 보여줍니다.
 - 듀얼 디스플레이 PC가 장면·게임 상태의 기준입니다. 다른 작품용 수신 이벤트는 `dist/exhibition-events.js`와 `integration/event-contract.json`에 준비되어 있습니다.
 
-[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/tag/v0.3.26-exhibition-hours)
+[Windows 테스트 ZIP 받기](https://github.com/suspiciouscloudgames/resonant-fields-parallax/releases/tag/v0.3.27-continuous-audio)
 
 ZIP을 풀고 `TEST-THREE-SCREENS.bat`을 실행하면 세 창으로 테스트합니다. 실제 Windows 전시 PC에서는 `START.bat`을 실행합니다. 가로·세로 모니터가 각 한 대씩 연결되어 있어야 합니다. Edge 또는 Chrome이 필요하며 ZIP에는 Python 런타임이 포함되어 있습니다.
 

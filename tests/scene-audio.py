@@ -47,7 +47,7 @@ try:
  assert status()['targets']['traffic']==.32
  at('rain','return_wait');assert status()['targets']['rain']==.85
  at('rain','return_enter')
- L.wait_for(lambda:rms()<.00001)
+ L.wait_for(lambda:status()['targets']=={'music':.42,'traffic':0,'rain':0} and rms()>.0001)
  for scene,phase in [('police','encounter'),('dog','dog_encounter')]:
   at(scene,phase);L.wait_for(lambda:rms()>.0001)
   assert status()['targets']=={'music':0,'traffic':.6,'rain':0}
